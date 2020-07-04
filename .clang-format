@@ -1,0 +1,24 @@
+﻿---
+BasedOnStyle: WebKit
+ColumnLimit: '80'
+IndentWidth: '4'
+PointerAlignment: Middle
+IndentPPDirectives: AfterHash
+AllowShortFunctionsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
+BinPackArguments: false
+AlignConsecutiveMacros: true
+AlignOperands: true
+AlignTrailingComments: true
+InsertTrailingCommas: true
+
+BraceWrapping:
+  AfterEnum: true
+  AfterFunction: true
+  AfterStruct: true
+  AfterUnion: true
+  BeforeElse: true
+
+BreakBeforeBraces: Custom
+
+...
