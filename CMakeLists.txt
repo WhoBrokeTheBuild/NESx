@@ -3,6 +3,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.15 FATAL_ERROR)
 # Allow for custom CMake modules
 LIST(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/CMake)
 
+INCLUDE(SourceFolders)
+INCLUDE(Version)
+
 ###
 ### Project
 ###
@@ -10,7 +13,7 @@ LIST(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/CMake)
 PROJECT(
     NESx
     LANGUAGES C
-    VERSION 0.0.01
+    VERSION ${PROJECT_VERSION}
 )
 
 ###
@@ -25,7 +28,7 @@ OPTION(BUILD_THIRDPARTY "Build Missing Third-Party Dependencies"    ON)
 ### Configuration
 ###
 
-# Allow for custom organization of files in VisualStudio
+# Allow for custom organization of files in IDEs
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
 
 IF(BUILD_TESTS)
@@ -60,13 +63,14 @@ IF(BUILD_THIRDPARTY)
         MESSAGE(FATAL_ERROR "Failed to configure ThirdParty projects")
     ENDIF()
 
-    SET(_THIRDPARTY_BUILD_COMMAND ${CMAKE_COMMAND} --build . )
+    SET(THIRDPARTY_BUILD_COMMAND ${CMAKE_COMMAND} --build . )
     IF(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
-        SET(_THIRDPARTY_BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -l )
+        # If we are using make, build in parallel
+        SET(THIRDPARTY_BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -l )
     ENDIF()
 
     EXECUTE_PROCESS(
-        COMMAND ${_THIRDPARTY_BUILD_COMMAND}
+        COMMAND ${THIRDPARTY_BUILD_COMMAND}
         WORKING_DIRECTORY ${THIRDPARTY_BINARY_DIR}
         RESULT_VARIABLE _result
     )
@@ -81,7 +85,9 @@ FIND_PACKAGE(cflags CONFIG REQUIRED)
 
 FIND_PACKAGE(ClangFormat)
 
-# Automation
+###
+### Automation
+###
 
 IF(ClangFormat_FOUND)
     ADD_CUSTOM_TARGET(format)
@@ -111,3 +117,47 @@ ADD_SUBDIRECTORY(NESx)
 
 # Set VisualStudio startup project
 #SET_PROPERTY(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT "")
+
+###
+### Install
+###
+
+INSTALL(
+    TARGETS MOS6502 NESx
+    EXPORT NESxTargets
+)
+
+INCLUDE(CMakePackageConfigHelpers)
+
+WRITE_BASIC_PACKAGE_VERSION_FILE(
+    ${CMAKE_BINARY_DIR}/NESxConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY AnyNewerVersion
+)
+
+INSTALL(
+    EXPORT NESxTargets
+    NAMESPACE NESx::
+    DESTINATION lib/cmake/NESx
+)
+
+CONFIGURE_PACKAGE_CONFIG_FILE(
+    ${CMAKE_SOURCE_DIR}/CMake/NESxConfig.cmake.in
+    ${CMAKE_BINARY_DIR}/NESxConfig.cmake
+    INSTALL_DESTINATION lib/cmake/NESx
+)
+
+FIND_PACKAGE(PkgConfig QUIET)
+
+IF(PKG_CONFIG_FOUND)
+    CONFIGURE_FILE(
+        ${CMAKE_SOURCE_DIR}/CMake/MOS6502.pc.in
+        ${CMAKE_BINARY_DIR}/MOS6502.pc
+    )
+
+    INSTALL(
+        FILES
+        ${CMAKE_BINARY_DIR}/MOS6502.pc
+        DESTINATION share/pkgconfig
+    )
+ENDIF()

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <MOS6502/MOS6502.h>
+#include <NESx/MOS6502/MOS6502.h>
 
 int main(int argc, char ** argv)
 {

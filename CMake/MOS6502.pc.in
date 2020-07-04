@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: MOS6502
+Description: The MOS6502 portion of the NESx Nintendo Entertainment System Emulator
+Version: @VERSION@
+
+Requires:
+Cflags: -I${includedir}
+Libs: -L${libdir} -lMOS6502

@@ -1,70 +1,29 @@
-#ifndef MOS6502_H
-#define MOS6502_H
+#ifndef NESX_MOS6502_H
+#define NESX_MOS6502_H
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <MOS6502/Macros.h>
+#include <NESx/MOS6502/Macros.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct mos6502;
-
-typedef void (*mos6502_instruction_t)(struct mos6502 *);
-
-typedef enum mos6502_state
-{
-    MOS6502_STATE_IDLE = 0,
-    MOS6502_STATE_FETCH,
-    MOS6502_STATE_FETCH_DB,
-    MOS6502_STATE_FETCH_ADL,
-    MOS6502_STATE_FETCH_ADH,
-    MOS6502_STATE_LOAD_DB,
-    MOS6502_STATE_LOAD_ADL,
-    MOS6502_STATE_LOAD_ADH,
-    MOS6502_STATE_STORE,
-
-} mos6502_state_t;
-
-static const char * mos6502_state_str(mos6502_state_t state)
-{
-    static const char * STATE_STR[] = {
-        "IDLE",
-        "FETCH (IR)",
-        "FETCH (DB)",
-        "FETCH (ADL)",
-        "FETCH (ADH)",
-        "LOAD (DB)",
-        "LOAD (ADL)",
-        "LOAD (ADH)",
-        "STORE",
-    };
-    return STATE_STR[(int)state];
-}
-
-typedef struct mos6502_instruction_cycle
-{
-    mos6502_instruction_t Instruction;
-    mos6502_state_t NewState;
-
-} mos6502_instruction_cycle_t;
 
 // clang-format off
 
 MOS6502_PACK(union mos6502_flags {
     struct
     {
-        uint8_t N : 1; // Negative
-        uint8_t V : 1; // Overflow
-        uint8_t   : 1; // Unused
-        uint8_t B : 1; // Break
-        uint8_t D : 1; // Decimal
-        uint8_t I : 1; // Interrupt
-        uint8_t Z : 1; // Zero
         uint8_t C : 1; // Carry
+        uint8_t Z : 1; // Zero
+        uint8_t I : 1; // Interrupt
+        uint8_t D : 1; // Decimal
+        uint8_t B : 1; // Break
+        uint8_t   : 1; // Unused
+        uint8_t V : 1; // Overflow
+        uint8_t N : 1; // Negative
     };
 
     uint8_t raw;
@@ -165,4 +124,4 @@ void mos6502_tick(mos6502_t * cpu);
 } // extern "C"
 #endif
 
-#endif // MOS6502_H
+#endif // NESX_MOS6502_H

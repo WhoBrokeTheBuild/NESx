@@ -19,6 +19,7 @@ IF(NOT cflags_FOUND)
         GIT_REPOSITORY      "https://github.com/WhoBrokeTheBuild/cflags.git"
         GIT_TAG             "master"
         GIT_SHALLOW         TRUE
+        GIT_PROGRESS        FALSE
         SOURCE_DIR          ${cflags_SOURCE_DIR}
         CMAKE_ARGS          -DCMAKE_INSTALL_PREFIX=${cflags_ROOT}
         BUILD_COMMAND       ""

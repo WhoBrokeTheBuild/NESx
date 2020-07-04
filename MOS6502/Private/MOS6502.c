@@ -1,4 +1,4 @@
-#include <MOS6502/MOS6502.h>
+#include <NESx/MOS6502/MOS6502.h>
 
 #include <stdlib.h>
 
