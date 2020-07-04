@@ -1,0 +1,52 @@
+language: cpp
+os: linux
+dist: bionic
+
+jobs:
+  include:
+    - name: "GCC Debug"
+      os: linux
+      compiler: gcc
+      addons:
+        apt:
+          packages: [ 'libsdl2-dev' ]
+      env: CMAKE_BUILD_TYPE=DEBUG
+
+    - name: "GCC Release"
+      os: linux
+      compiler: gcc
+      addons:
+        apt:
+          packages: [ 'libsdl2-dev' ]
+      env: CMAKE_BUILD_TYPE=RELEASE
+
+    - name: "Clang Debug"
+      os: linux
+      compiler: clang
+      addons:
+        apt:
+          packages: [ 'libsdl2-dev' ]
+      env: CMAKE_BUILD_TYPE=DEBUG
+
+    - name: "Clang Release"
+      os: linux
+      compiler: clang
+      addons:
+        apt:
+          packages: [ 'libsdl2-dev' ]
+      env: CMAKE_BUILD_TYPE=RELEASE
+
+before_install:
+  - mkdir $HOME/cmake
+  - wget -O $HOME/cmake/install.sh https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3-Linux-x86_64.sh
+  - bash $HOME/cmake/install.sh --prefix=$HOME/cmake --skip-license --exclude-subdir
+  - export PATH="$HOME/cmake/bin:$PATH"
+  - cmake --version
+  - env
+
+script:
+  - mkdir "$TRAVIS_BUILD_DIR/build"
+  - cd "$TRAVIS_BUILD_DIR/build"
+  - export CMAKE_MODULE_PATH=/usr/share/SFML/cmake/Modules/
+  - cmake -DBUILD_TOOLS=ON -DBUILD_TESTS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
+  - make -l all test
