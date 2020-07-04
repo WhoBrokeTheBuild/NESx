@@ -55,3 +55,34 @@ IF(ClangFormat_FOUND)
 
     ADD_DEPENDENCIES(format format-${target})
 ENDIF()
+
+# Tests
+
+IF(BUILD_TESTS)
+    FILE(
+        GLOB_RECURSE
+        tests
+        "Tests/*.c"
+    )
+
+    FOREACH(test_source ${tests})
+        GET_FILENAME_COMPONENT(test_target ${test_source} NAME_WE)
+
+        ADD_EXECUTABLE(
+            ${test_target}
+            ${test_source}
+        )
+
+        TARGET_LINK_LIBRARIES(
+            ${test_target}
+            PRIVATE
+                ${target}
+        )
+
+        ADD_TEST(
+            NAME "${target}_${test_target}"
+            COMMAND $<TARGET_FILE:${test_target}>
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Tests"
+        )
+    ENDFOREACH()
+ENDIF()
