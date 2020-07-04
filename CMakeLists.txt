@@ -13,6 +13,7 @@ INCLUDE(Version)
 PROJECT(
     NESx
     LANGUAGES C
+    DESCRIPTION "A Toy Nintendo Entertainment System Emulator"
     VERSION ${PROJECT_VERSION}
 )
 
