@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/WhoBrokeTheBuild/NESx.svg?branch=main)](https://travis-ci.com/WhoBrokeTheBuild/NESx)
+
 # NESx
 
 A Toy Nintendo Entertainment System Emulator
