@@ -1,8 +1,9 @@
 #include <NESx/MOS6502/MOS6502.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 
-void mos6502_init(mos6502_t * cpu)
+void MOS6502_Init(mos6502_t * cpu)
 {
     cpu->AB = 0x0000;
     cpu->DB = 0x00;
@@ -19,7 +20,6 @@ void mos6502_init(mos6502_t * cpu)
 
     cpu->P.N = false;
     cpu->P.V = false;
-    // cpu->P.X = true;
     cpu->P.B = true;
     cpu->P.D = false;
     cpu->P.I = true;
@@ -57,16 +57,14 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
     _SET_NZ((V))
 
 #define _PUSH(V)                                                               \
-    cpu->ADH = 0x01;                                                           \
-    cpu->ADL = cpu->S--;                                                       \
-    cpu->AB = cpu->AD;                                                         \
+    cpu->ABH = 0x01;                                                           \
+    cpu->ABL = cpu->S--;                                                       \
     cpu->DB = (V);                                                             \
     cpu->RW = MOS6502_RW_WRITE
 
 #define _PULL()                                                                \
-    cpu->ADH = 0x01;                                                           \
-    cpu->ADL = cpu->S++;                                                       \
-    cpu->AB = cpu->AD;
+    cpu->ABH = 0x01;                                                           \
+    cpu->ABL = cpu->S++;
 
 #define _OR()                                                                  \
     cpu->A |= cpu->DB;                                                         \
@@ -169,7 +167,31 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
 
 #define _IND_4_Y() cpu->AB = cpu->AD + cpu->Y
 
-void mos6502_tick(mos6502_t * cpu)
+// branch
+
+#define _BRANCH_0() cpu->AB = cpu->PC++
+
+#define _BRANCH_1(TEST)                                                        \
+    cpu->AB = cpu->PC;                                                         \
+    cpu->AD = cpu->PC + (int8_t)cpu->DB;                                       \
+    if (TEST) {                                                                \
+        _FETCH();                                                              \
+    }
+
+#define _BRANCH_2()                                                            \
+    cpu->ABH = cpu->PCH;                                                       \
+    cpu->ABL = cpu->ADL;                                                       \
+    /* Check for page boundary */                                              \
+    if (cpu->ADH == cpu->PCH) {                                                \
+        cpu->PC = cpu->AD;                                                     \
+        /* irq */                                                              \
+        /* nmi */                                                              \
+        _FETCH();                                                              \
+    }
+
+#define _BRANCH_3() cpu->PC = cpu->AD
+
+void MOS6502_Tick(mos6502_t * cpu)
 {
     if (cpu->RW && !cpu->RDY) {
         return;
@@ -317,27 +339,11 @@ void mos6502_tick(mos6502_t * cpu)
     case (0x0E << 3) | 5: _FETCH(); break;
 
     // BPL
-    case (0x10 << 3) | 0: _IMM(); break;
-    case (0x10 << 3) | 1:
-        cpu->AB = cpu->PC;
-        cpu->AD = cpu->PC + (int8_t)cpu->DB;
-        if (!cpu->P.Z) {
-            _FETCH();
-        }
-        break;
-    case (0x10 << 3) | 2:
-        cpu->ABH = cpu->PCH;
-        cpu->ABL = cpu->ADL;
-        // Check for page boundary
-        if (cpu->ADH == cpu->PCH) {
-            cpu->PC = cpu->AD;
-            // irq
-            // nmi
-            _FETCH();
-        }
-        break;
+    case (0x10 << 3) | 0: _BRANCH_0(); break;
+    case (0x10 << 3) | 1: _BRANCH_1(!cpu->P.Z); break;
+    case (0x10 << 3) | 2: _BRANCH_2(); break;
     case (0x10 << 3) | 3:
-        cpu->PC = cpu->AD;
+        _BRANCH_3();
         _FETCH();
         break;
 
@@ -400,8 +406,8 @@ void mos6502_tick(mos6502_t * cpu)
     // JSR
     case (0x20 << 3) | 0: cpu->AB = cpu->PC++; break;
     case (0x20 << 3) | 1:
-        cpu->ADL = cpu->DB;
         cpu->ABH = 0x01;
+        cpu->ADL = cpu->DB;
         cpu->ABL = cpu->S;
         break;
     case (0x20 << 3) | 2: _PUSH(cpu->PCH); break;
@@ -410,6 +416,16 @@ void mos6502_tick(mos6502_t * cpu)
     case (0x20 << 3) | 5:
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
+        _FETCH();
+        break;
+
+    // BIT zeropage
+    case (0x24 << 3) | 0: _ZPG_0(); break;
+    case (0x24 << 3) | 1: _ZPG_1(); break;
+    case (0x24 << 3) | 2:
+        cpu->P.N = (cpu->DB >> 7);
+        cpu->P.V = (cpu->DB >> 6);
+        cpu->P.Z = ((cpu->A & cpu->DB) == 0);
         _FETCH();
         break;
 
@@ -422,6 +438,26 @@ void mos6502_tick(mos6502_t * cpu)
     case (0x28 << 3) | 2:
         cpu->P.raw = cpu->DB; // TODO: Unset unused flag
         cpu->P.B = true;
+        _FETCH();
+        break;
+
+    // BIT absolute
+    case (0x2C << 3) | 0: _ABS_0(); break;
+    case (0x2C << 3) | 1: _ABS_1(); break;
+    case (0x2C << 3) | 2: _ABS_2(); break;
+    case (0x2C << 3) | 3:
+        cpu->P.N = (cpu->DB >> 7);
+        cpu->P.V = (cpu->DB >> 6);
+        cpu->P.Z = ((cpu->A & cpu->DB) == 0);
+        _FETCH();
+        break;
+
+    // BMI
+    case (0x30 << 3) | 0: _BRANCH_0(); break;
+    case (0x30 << 3) | 1: _BRANCH_1(!cpu->P.N); break;
+    case (0x30 << 3) | 2: _BRANCH_2(); break;
+    case (0x30 << 3) | 3:
+        _BRANCH_3();
         _FETCH();
         break;
 
@@ -484,6 +520,15 @@ void mos6502_tick(mos6502_t * cpu)
         _FETCH();
         break;
 
+    // BVC
+    case (0x50 << 3) | 0: _BRANCH_0(); break;
+    case (0x50 << 3) | 1: _BRANCH_1(cpu->P.V); break;
+    case (0x50 << 3) | 2: _BRANCH_2(); break;
+    case (0x50 << 3) | 3:
+        _BRANCH_3();
+        _FETCH();
+        break;
+
     // EOR (indirect),Y
     case (0x51 << 3) | 0: _IND_0(); break;
     case (0x51 << 3) | 1: _IND_1(); break;
@@ -542,7 +587,10 @@ void mos6502_tick(mos6502_t * cpu)
     case (0x60 << 3) | 0: _STALL(); break;
     case (0x60 << 3) | 1: _PULL(); break;
     case (0x60 << 3) | 2: _PULL(); break;
-    case (0x60 << 3) | 3: cpu->ADL = cpu->DB; break;
+    case (0x60 << 3) | 3:
+        cpu->ABL = cpu->S;
+        cpu->ADL = cpu->DB;
+        break;
     case (0x60 << 3) | 4:
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
@@ -551,12 +599,10 @@ void mos6502_tick(mos6502_t * cpu)
     case (0x60 << 3) | 5: _FETCH(); break;
 
     // PLA
-    case (0x68 << 3) | 0: _PULL(); break;
-    case (0x68 << 3) | 1:
-        // Page Boundary
-        cpu->ADL = cpu->S;
-        break;
-    case (0x68 << 3) | 2:
+    case (0x68 << 3) | 0: _STALL(); break;
+    case (0x68 << 3) | 1: _PULL(); break;
+    case (0x68 << 3) | 2: break;
+    case (0x68 << 3) | 3:
         cpu->A = cpu->DB;
         _SET_NZ(cpu->A);
         _FETCH();
@@ -583,6 +629,15 @@ void mos6502_tick(mos6502_t * cpu)
         _FETCH();
         break;
 
+    // BVS
+    case (0x70 << 3) | 0: _BRANCH_0(); break;
+    case (0x70 << 3) | 1: _BRANCH_1(!cpu->P.V); break;
+    case (0x70 << 3) | 2: _BRANCH_2(); break;
+    case (0x70 << 3) | 3:
+        _BRANCH_3();
+        _FETCH();
+        break;
+
     // SEI
     case (0x78 << 3) | 0: _STALL(); break;
     case (0x78 << 3) | 1:
@@ -601,6 +656,24 @@ void mos6502_tick(mos6502_t * cpu)
         cpu->RW = MOS6502_RW_WRITE;
         break;
     case (0x81 << 3) | 5: _FETCH(); break;
+
+    // STX zeropage
+    case (0x86 << 3) | 0: _ZPG_0(); break;
+    case (0x86 << 3) | 1:
+        _ZPG_1();
+        cpu->DB = cpu->X;
+        cpu->RW = MOS6502_RW_WRITE;
+        break;
+    case (0x86 << 3) | 2: _FETCH(); break;
+
+    // BCC
+    case (0x90 << 3) | 0: _BRANCH_0(); break;
+    case (0x90 << 3) | 1: _BRANCH_1(cpu->P.C); break;
+    case (0x90 << 3) | 2: _BRANCH_2(); break;
+    case (0x90 << 3) | 3:
+        _BRANCH_3();
+        _FETCH();
+        break;
 
     // STA (zeropage),Y
     case (0x91 << 3) | 0: _IND_0(); break;
@@ -656,6 +729,14 @@ void mos6502_tick(mos6502_t * cpu)
         _FETCH();
         break;
 
+    // LDA immediate
+    case (0xA9 << 3) | 0: _IMM(); break;
+    case (0xA9 << 3) | 1:
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
     // LDY absolute
     case (0xAC << 3) | 0: _ABS_0(); break;
     case (0xAC << 3) | 1: _ABS_1(); break;
@@ -676,6 +757,15 @@ void mos6502_tick(mos6502_t * cpu)
         _FETCH();
         break;
 
+    // BCS
+    case (0xB0 << 3) | 0: _BRANCH_0(); break;
+    case (0xB0 << 3) | 1: _BRANCH_1(!cpu->P.C); break;
+    case (0xB0 << 3) | 2: _BRANCH_2(); break;
+    case (0xB0 << 3) | 3:
+        _BRANCH_3();
+        _FETCH();
+        break;
+
     // LDY zeropage,X
     case (0xB4 << 3) | 0: _ZPG_0(); break;
     case (0xB4 << 3) | 1: _ZPG_1(); break;
@@ -684,6 +774,15 @@ void mos6502_tick(mos6502_t * cpu)
         cpu->Y = cpu->DB;
         _SET_NZ(cpu->Y);
         break;
+
+    // STA zeropage
+    case (0x85 << 3) | 0: _ZPG_0(); break;
+    case (0x85 << 3) | 1:
+        _ZPG_1();
+        cpu->DB = cpu->A;
+        cpu->RW = MOS6502_RW_WRITE;
+        break;
+    case (0x85 << 3) | 2: _FETCH(); break;
 
     // LDX zeropage,Y
     case (0xB6 << 3) | 0: _ZPG_0(); break;
@@ -718,6 +817,15 @@ void mos6502_tick(mos6502_t * cpu)
     case (0xBE << 3 | 3):
         cpu->X = cpu->DB;
         _SET_NZ(cpu->X);
+        _FETCH();
+        break;
+
+    // BNE
+    case (0xD0 << 3) | 0: _BRANCH_0(); break;
+    case (0xD0 << 3) | 1: _BRANCH_1(cpu->P.Z); break;
+    case (0xD0 << 3) | 2: _BRANCH_2(); break;
+    case (0xD0 << 3) | 3:
+        _BRANCH_3();
         _FETCH();
         break;
 
@@ -770,6 +878,15 @@ void mos6502_tick(mos6502_t * cpu)
         cpu->RW = MOS6502_RW_WRITE;
         break;
     case (0xEE << 3) | 5: _FETCH(); break;
+
+    // BEQ
+    case (0xF0 << 3) | 0: _BRANCH_0(); break;
+    case (0xF0 << 3) | 1: _BRANCH_1(!cpu->P.Z); break;
+    case (0xF0 << 3) | 2: _BRANCH_2(); break;
+    case (0xF0 << 3) | 3:
+        _BRANCH_3();
+        _FETCH();
+        break;
 
     // INC zeropage,X
     case (0xF6 << 3) | 0: _ZPG_0(); break;

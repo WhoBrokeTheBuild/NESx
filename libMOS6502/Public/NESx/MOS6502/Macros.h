@@ -9,4 +9,6 @@
 #    define MOS6502_INLINE     __attribute__((always_inline))
 #endif
 
+#define MOS6502_UNUSED(V) (void)(V)
+
 #endif // NESX_MOS6502_MACROS_H

@@ -13,7 +13,8 @@ extern "C" {
 
 // clang-format off
 
-MOS6502_PACK(union mos6502_flags {
+MOS6502_PACK(union mos6502_flags
+{
     struct
     {
         uint8_t C : 1; // Carry
@@ -116,9 +117,9 @@ typedef struct mos6502
 
 } mos6502_t;
 
-void mos6502_init(mos6502_t * cpu);
+void MOS6502_Init(mos6502_t * cpu);
 
-void mos6502_tick(mos6502_t * cpu);
+void MOS6502_Tick(mos6502_t * cpu);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -10,7 +10,6 @@ BinPackArguments: false
 AlignConsecutiveMacros: true
 AlignOperands: true
 AlignTrailingComments: true
-InsertTrailingCommas: true
 
 BraceWrapping:
   AfterEnum: true

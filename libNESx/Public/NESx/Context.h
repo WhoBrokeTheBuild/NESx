@@ -1,0 +1,4 @@
+#ifndef NESX_CONTEXT_H
+#define NESX_CONTEXT_H
+
+#endif // NESX_CONTEXT_H

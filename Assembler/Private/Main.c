@@ -145,7 +145,7 @@ int main(int argc, char ** argv)
 
     cflags_parse(flags, argc, argv);
 
-    if (flags->argc == 0) {
+    if (help || flags->argc == 0) {
         cflags_print_usage(flags, 
             "[OPTION]... FILENAME...",
             "The NESx MOS6502 Assembler",

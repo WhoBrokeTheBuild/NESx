@@ -1,71 +1,61 @@
-#include <stdio.h>
-#include <string.h>
 
-#include <NESx/MOS6502/MOS6502.h>
+#include <NESx/MMU.h>
+#include <NESx/Macros.h>
+#include <NESx/NESx.h>
+#include <cflags.h>
 
 int main(int argc, char ** argv)
 {
-    uint8_t memory[1 << 16] = { 0x00 };
+    cflags_t * flags = cflags_init();
 
-    // clang-format off
+    bool help = false;
+    cflags_add_bool(flags, 'h', "help", &help, "display this help and exit");
 
-    uint8_t program[] = {
-        0xA2, 0x55, // LDX $55
-        0xA0, 0x66, // LDY $66
-        0x38,       // SEC
-        0xE8,       // INX
-        0xC8,       // INY
-        0x18,       // CLC
+    int scale = 1;
+    cflags_add_int(flags, 's', "scale", &scale, "Window scale, default is 1");
 
-        // NOPs
-        0xEA, 0xEA, 0xEA, 0xEA, 0xEA,
-        0xEA, 0xEA, 0xEA, 0xEA, 0xEA,
-        0xEA, 0xEA, 0xEA, 0xEA, 0xEA,
-    };
+    cflags_flag_t * verbose = cflags_add_bool(flags,
+        'v',
+        "verbose",
+        NULL,
+        "Enables verbose output, repeat up to 4 times for more verbosity");
+    NESX_UNUSED(verbose);
 
-    // clang-format on
+    cflags_parse(flags, argc, argv);
 
-    memcpy(memory, program, sizeof(program));
+    if (help || flags->argc == 0) {
+        cflags_print_usage(flags,
+            "[OPTION]... ROM_FILENAME",
+            "A Toy Nintendo Entertainment System Emulator",
+            "Additional information about this program can be found by "
+            "contacting:\n"
+            "  sdl.slane@gmail.com");
 
-    mos6502_t cpu;
-    mos6502_init(&cpu);
-
-    for (int i = 0; i < 16; ++i) {
-        if (cpu.RW == MOS6502_RW_READ) {
-            cpu.DB = memory[cpu.AB];
-            cpu.RDY = true;
-        }
-        else {
-            memory[cpu.AB] = cpu.DB;
-            cpu.RDY = true;
-        }
-
-        printf("%03d T%d RW=%d SYNC=%d RDY=%d IR=%02X PC=%04X S=%02X A=%02X "
-               "X=%02X Y=%02X P=%c%c%c%c%c%c%c AD=%04X AB=%04X DB=%02X\n",
-            i,
-            (cpu.IR & 0x7),
-            cpu.RW,
-            cpu.SYNC,
-            cpu.RDY,
-            (cpu.IR >> 3),
-            cpu.PC,
-            cpu.S,
-            cpu.A,
-            cpu.X,
-            cpu.Y,
-            (cpu.P.N ? 'N' : 'n'),
-            (cpu.P.V ? 'V' : 'v'),
-            (cpu.P.B ? 'B' : 'b'),
-            (cpu.P.D ? 'D' : 'd'),
-            (cpu.P.I ? 'I' : 'i'),
-            (cpu.P.Z ? 'Z' : 'z'),
-            (cpu.P.C ? 'C' : 'c'),
-            cpu.AD,
-            cpu.AB,
-            cpu.DB);
-
-        mos6502_tick(&cpu);
+        cflags_free(flags);
+        return 0;
     }
 
+    nesx_t nes;
+    if (!NESx_Init(&nes)) {
+        NESx_Term(&nes);
+        return 1;
+    }
+
+    if (!NESx_LoadROM(&nes, flags->argv[0])) {
+        NESx_Term(&nes);
+        return 1;
+    }
+
+    NESx_PrintROMHeader(&nes);
+
+    nes.CPU.PCL = NESx_ReadByte(&nes, 0xFFFE);
+    nes.CPU.PCH = NESx_ReadByte(&nes, 0xFFFF);
+    printf("%04X\n", nes.CPU.PC);
+
+    printf("%02X %02X\n",
+        NESx_ReadByte(&nes, nes.CPU.PC),
+        NESx_ReadByte(&nes, nes.CPU.PC + 1));
+
+    NESx_Term(&nes);
     return 0;
 }

@@ -7,7 +7,7 @@ mos6502_t cpu;
 
 void setup()
 {
-    mos6502_init(&cpu);
+    MOS6502_Init(&cpu);
     cpu.P.raw = 0x00;
 }
 

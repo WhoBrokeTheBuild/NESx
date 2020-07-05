@@ -37,6 +37,16 @@ IF(BUILD_TESTS)
 ENDIF()
 
 ###
+### Macros
+###
+
+MACRO(DOWNLOAD_IF_NOT_EXIST URL FILENAME)
+    IF(NOT EXISTS ${FILENAME})
+        FILE(DOWNLOAD ${URL} ${FILENAME})
+    ENDIF()
+ENDMACRO()
+
+###
 ### Third Party Dependencies
 ###
 
@@ -104,7 +114,8 @@ ENDIF()
 ### Libraries
 ###
 
-ADD_SUBDIRECTORY(MOS6502)
+ADD_SUBDIRECTORY(libMOS6502)
+ADD_SUBDIRECTORY(libNESx)
 
 ###
 ### Executables
@@ -124,7 +135,10 @@ ADD_SUBDIRECTORY(NESx)
 ###
 
 INSTALL(
-    TARGETS MOS6502 NESx
+    TARGETS 
+        libMOS6502
+        libNESx
+        NESx
     EXPORT NESxTargets
 )
 

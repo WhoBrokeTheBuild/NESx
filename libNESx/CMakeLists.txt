@@ -12,7 +12,7 @@ FILE(
     "Public/*.h"
 )
 
-SET(target MOS6502)
+SET(target libNESx)
 
 ADD_LIBRARY(
     ${target}
@@ -26,6 +26,7 @@ SET_TARGET_PROPERTIES(
     ${target}
     PROPERTIES
         C_STANDARD 11
+        OUTPUT_NAME "NESx"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -37,29 +38,10 @@ TARGET_INCLUDE_DIRECTORIES(
         Private
 )
 
-TARGET_COMPILE_DEFINITIONS(
+TARGET_LINK_LIBRARIES(
     ${target}
     PUBLIC
-        # Disable Visual Studio "not secure" warnings
-        $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
-)
-
-TARGET_COMPILE_OPTIONS(
-    ${target}
-    PUBLIC
-        # Disable unknown pragmas warning
-        $<$<C_COMPILER_ID:GNU>:-Wall -Wno-unknown-pragmas>
-        $<$<C_COMPILER_ID:Clang>:-Wall -Wno-unknown-pragmas>
-        $<$<C_COMPILER_ID:MSVC>:/wd4068>
-        # Enable mutlithreaded builds
-        $<$<C_COMPILER_ID:MSVC>:/MP>
-)
-
-# Install
-
-INSTALL(
-    FILES ${public}
-    DESTINATION include/NESx/MOS6502
+        libMOS6502
 )
 
 # Automation
@@ -83,6 +65,16 @@ ENDIF()
 # Tests
 
 IF(BUILD_TESTS)
+    # Test ROMs and assets
+    DOWNLOAD_IF_NOT_EXIST(
+        "http://nickmass.com/images/nestest.nes"
+        ${CMAKE_CURRENT_BINARY_DIR}/nestest.nes
+    )
+    DOWNLOAD_IF_NOT_EXIST(
+        "https://www.qmtpro.com/~nes/misc/nestest.log"
+        ${CMAKE_CURRENT_BINARY_DIR}/nestest.log
+    )
+
     FILE(
         GLOB_RECURSE
         tests
@@ -101,13 +93,13 @@ IF(BUILD_TESTS)
         TARGET_LINK_LIBRARIES(
             ${test_target}
             PRIVATE
-                ${target}
+                libNESx
         )
 
         ADD_TEST(
             NAME "${test_target}"
             COMMAND $<TARGET_FILE:${test_target}>
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Tests"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
     ENDFOREACH()
 ENDIF()
