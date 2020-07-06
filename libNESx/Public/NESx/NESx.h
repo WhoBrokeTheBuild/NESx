@@ -24,4 +24,6 @@ bool NESx_Init(nesx_t * ctx);
 
 void NESx_Term(nesx_t * ctx);
 
+void NESx_Tick(nesx_t * ctx);
+
 #endif // NESX_H

@@ -2,38 +2,30 @@ language: cpp
 os: linux
 dist: bionic
 
+branches:
+  except:
+  - /^wip-.*$/
+
+addons:
+  apt:
+    packages: [ 'libsdl2-dev', 'libgtk-3-dev' ]
+
 jobs:
   include:
     - name: "GCC Debug"
-      os: linux
       compiler: gcc
-      addons:
-        apt:
-          packages: [ 'libsdl2-dev' ]
       env: CMAKE_BUILD_TYPE=DEBUG
 
     - name: "GCC Release"
-      os: linux
       compiler: gcc
-      addons:
-        apt:
-          packages: [ 'libsdl2-dev' ]
       env: CMAKE_BUILD_TYPE=RELEASE
 
     - name: "Clang Debug"
-      os: linux
       compiler: clang
-      addons:
-        apt:
-          packages: [ 'libsdl2-dev' ]
       env: CMAKE_BUILD_TYPE=DEBUG
 
     - name: "Clang Release"
-      os: linux
       compiler: clang
-      addons:
-        apt:
-          packages: [ 'libsdl2-dev' ]
       env: CMAKE_BUILD_TYPE=RELEASE
 
 before_install:
@@ -47,7 +39,6 @@ before_install:
 script:
   - mkdir "$TRAVIS_BUILD_DIR/build"
   - cd "$TRAVIS_BUILD_DIR/build"
-  - export CMAKE_MODULE_PATH=/usr/share/SFML/cmake/Modules/
   - cmake -DBUILD_TOOLS=ON -DBUILD_TESTS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
   - make -l all
   - ctest --output-on-failure

@@ -41,6 +41,20 @@ TARGET_LINK_LIBRARIES(
         cflags::cflags
 )
 
+IF(GTK3_FOUND)
+    TARGET_COMPILE_DEFINITIONS(
+        ${target}
+        PRIVATE
+            NESX_HAVE_GTK3
+    )
+
+    TARGET_LINK_LIBRARIES(
+        ${target}
+        PUBLIC
+            GTK3::GTK3
+    )
+ENDIF()
+
 # Automation
 
 IF(ClangFormat_FOUND)

@@ -1809,7 +1809,8 @@ void MOS6502_Tick(mos6502_t * cpu)
             "unsupported opcode/cycle %02X:%d\n",
             (cpu->IR >> 3),
             (cpu->IR & 0b111));
-        assert(false);
+        // assert(false);
+        _FETCH();
         break;
     };
 }

@@ -58,6 +58,9 @@ bool NESx_LoadROM(nesx_t * ctx, const char * filename)
         return false;
     };
 
+    ctx->CPU.PCL = NESx_ReadByte(ctx, 0xFFFE);
+    ctx->CPU.PCH = NESx_ReadByte(ctx, 0xFFFF);
+
     return true;
 }
 

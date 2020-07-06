@@ -4,8 +4,12 @@
 #include <NESx/NESx.h>
 #include <cflags.h>
 
+#include "Debug.h"
+
 int main(int argc, char ** argv)
 {
+    int status = 0;
+
     cflags_t * flags = cflags_init();
 
     bool help = false;
@@ -23,7 +27,7 @@ int main(int argc, char ** argv)
 
     cflags_parse(flags, argc, argv);
 
-    if (help || flags->argc == 0) {
+    if (help || flags->argc == 1) {
         cflags_print_usage(flags,
             "[OPTION]... ROM_FILENAME",
             "A Toy Nintendo Entertainment System Emulator",
@@ -37,25 +41,25 @@ int main(int argc, char ** argv)
 
     nesx_t nes;
     if (!NESx_Init(&nes)) {
-        NESx_Term(&nes);
-        return 1;
+        status = 1;
+        goto cleanup;
     }
 
-    if (!NESx_LoadROM(&nes, flags->argv[0])) {
-        NESx_Term(&nes);
-        return 1;
+    if (!NESx_LoadROM(&nes, flags->argv[1])) {
+        status = 1;
+        goto cleanup;
     }
 
     NESx_PrintROMHeader(&nes);
 
-    nes.CPU.PCL = NESx_ReadByte(&nes, 0xFFFE);
-    nes.CPU.PCH = NESx_ReadByte(&nes, 0xFFFF);
-    printf("%04X\n", nes.CPU.PC);
+    if (!DebugInit(&nes, flags->argc, flags->argv)) {
+        status = 1;
+        goto cleanup;
+    }
 
-    printf("%02X %02X\n",
-        NESx_ReadByte(&nes, nes.CPU.PC),
-        NESx_ReadByte(&nes, nes.CPU.PC + 1));
+cleanup:
 
     NESx_Term(&nes);
-    return 0;
+    cflags_free(flags);
+    return status;
 }
