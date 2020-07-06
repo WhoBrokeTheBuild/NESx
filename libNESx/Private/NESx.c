@@ -10,7 +10,7 @@ bool NESx_Init(nesx_t * ctx)
 
     // http://wiki.nesdev.com/w/index.php/CPU_power_up_state
 
-    ctx->CPU.P.raw = 0x34;
+    MOS6502_SetStatusRegister(&ctx->CPU, 0x34);
     ctx->CPU.A = 0;
     ctx->CPU.X = 0;
     ctx->CPU.Y = 0;

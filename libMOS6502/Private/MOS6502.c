@@ -8,66 +8,85 @@ Heavily influenced by
 https://github.com/floooh/chips/blob/master/chips/m6502.h
 */
 
-void MOS6502_Init(mos6502_t * cpu)
-{
-    cpu->AB = 0x0000;
-    cpu->DB = 0x00;
+#define _MASK_FC (1 << 0)
+#define _MASK_FZ (1 << 1)
+#define _MASK_FI (1 << 2)
+#define _MASK_FD (1 << 3)
+#define _MASK_FB (1 << 4)
+#define _MASK_FX (1 << 5)
+#define _MASK_FV (1 << 6)
+#define _MASK_FN (1 << 7)
 
-    cpu->IR = 0x0000;
+// clang-format off
 
-    cpu->PC = 0x0000;
-    cpu->AD = 0x0000;
-
-    cpu->A = 0xAA;
-    cpu->X = 0x00;
-    cpu->Y = 0x00;
-    cpu->S = 0xFD;
-    cpu->P.raw = 0x34;
-
-    cpu->RW = 1;
-    cpu->SYNC = 1;
-    cpu->IRQ = 0;
-    cpu->NMI = 0;
-    cpu->RDY = 0;
-    cpu->RES = 1;
-
-    cpu->BCDEnabled = true;
-}
-#define _CYCLE(OP, CYC) ((OP) << 3) | (CYC)
+#define _CYCLE(OP, CYC)                                                        \
+    ((OP) << 3) | (CYC)
 
 #define _FETCH()                                                               \
     cpu->AB = cpu->PC;                                                         \
     cpu->SYNC = true
 
-#define _SET_WRITE() cpu->RW = 0
+#define _STALL()                                                               \
+    cpu->AB = cpu->PC
 
-#define _STALL() cpu->AB = cpu->PC
+
+// Flags
+
+#define _SET_WRITE() \
+    cpu->RW = 0
+    
+#define _SET_READ() \
+    cpu->RW = 1
+
+#define _SET_NZ_FLAGS(VALUE)                                                   \
+    cpu->FN = ((VALUE) & 0x80);                                                \
+    cpu->FZ = ((VALUE) == 0)
+
+#define _GET_FLAGS()                                                           \
+        (cpu->FC ? _MASK_FC : 0) |                                             \
+        (cpu->FZ ? _MASK_FZ : 0) |                                             \
+        (cpu->FI ? _MASK_FI : 0) |                                             \
+        (cpu->FD ? _MASK_FD : 0) |                                             \
+                   _MASK_FX      |                                             \
+        (cpu->FV ? _MASK_FV : 0) |                                             \
+        (cpu->FN ? _MASK_FN : 0)
+
+#define _SET_FLAGS(VALUE)                                                      \
+    cpu->FC = (((VALUE) & _MASK_FC) > 0);                                      \
+    cpu->FZ = (((VALUE) & _MASK_FZ) > 0);                                      \
+    cpu->FI = (((VALUE) & _MASK_FI) > 0);                                      \
+    cpu->FD = (((VALUE) & _MASK_FD) > 0);                                      \
+    cpu->FV = (((VALUE) & _MASK_FV) > 0);                                      \
+    cpu->FN = (((VALUE) & _MASK_FN) > 0)
 
 // Skip the next cycle if a page boundary is not crossed
-#define _PAGE_BOUND_CHECK_SKIP(V)                                              \
+#define _PAGE_BOUND_CHECK(V)                                                   \
     cpu->IR += (~(cpu->ADH - ((cpu->AD + (V)) >> 8))) & 1
 
-// immediate
+// Addressing Modes
 
-#define _IMM() cpu->AB = cpu->PC++
+// immediate
+#define _IMM()                                                                 \
+    cpu->AB = cpu->PC++
 
 // zeropage
+#define _ZPG_0()                                                               \
+    cpu->AB = cpu->PC++
 
-#define _ZPG_0() cpu->AB = cpu->PC++
-
-#define _ZPG_1() cpu->AB = cpu->DB
+#define _ZPG_1()                                                               \
+    cpu->AB = cpu->DB
 
 // zeropage,X
-
-#define _ZPG_2_X() cpu->ABL += cpu->X
+#define _ZPG_2_X()                                                             \
+    cpu->ABL += cpu->X
 
 // zeropage,Y
-
-#define _ZPG_2_Y() cpu->ABL += cpu->Y
+#define _ZPG_2_Y()                                                             \
+    cpu->ABL += cpu->Y
 
 // absolute
-
-#define _ABS_0() cpu->AB = cpu->PC++
+#define _ABS_0()                                                               \
+    cpu->AB = cpu->PC++
 
 #define _ABS_1()                                                               \
     cpu->AB = cpu->PC++;                                                       \
@@ -78,30 +97,39 @@ void MOS6502_Init(mos6502_t * cpu)
     cpu->AB = cpu->AD
 
 // absolute,X
-
 #define _ABS_2_X()                                                             \
     _ABS_2();                                                                  \
     cpu->ABL += cpu->X
 
-#define _ABS_3_X() cpu->AB = cpu->AD + cpu->X
+#define _ABS_2_X_PGCHK()                                                       \
+    _ABS_2_X();                                                                \
+    _PAGE_BOUND_CHECK(cpu->X)
+
+#define _ABS_3_X()                                                             \
+    cpu->AB = cpu->AD + cpu->X
 
 // absolute,Y
-
 #define _ABS_2_Y()                                                             \
     _ABS_2();                                                                  \
     cpu->ABL += cpu->Y
 
-#define _ABS_3_Y() cpu->AB = cpu->AD + cpu->Y
+#define _ABS_2_Y_PGCHK()                                                       \
+    _ABS_2_Y();                                                                \
+    _PAGE_BOUND_CHECK(cpu->Y)
+
+#define _ABS_3_Y()                                                             \
+    cpu->AB = cpu->AD + cpu->Y
 
 // indirect
+#define _IND_0()                                                               \
+    cpu->AB = cpu->PC++
 
-#define _IND_0() cpu->AB = cpu->PC++
-
-#define _IND_1() cpu->AB = cpu->DB
+#define _IND_1()                                                               \
+    cpu->AB = cpu->DB
 
 // (indirect,X)
-
-#define _IND_2_X() cpu->ABL += cpu->X
+#define _IND_2_X()                                                             \
+    cpu->ABL += cpu->X
 
 #define _IND_3_X()                                                             \
     ++cpu->ABL;                                                                \
@@ -112,7 +140,6 @@ void MOS6502_Init(mos6502_t * cpu)
     cpu->AB = cpu->AD
 
 // (indirect),Y
-
 #define _IND_2_Y()                                                             \
     ++cpu->ABL;                                                                \
     cpu->ADL = cpu->DB
@@ -122,16 +149,22 @@ void MOS6502_Init(mos6502_t * cpu)
     cpu->AB = cpu->AD;                                                         \
     cpu->ABL += cpu->Y
 
-#define _IND_4_Y() cpu->AB = cpu->AD + cpu->Y
+#define _IND_3_Y_PGCHK()                                                       \
+    _IND_3_Y();                                                                \
+    _PAGE_BOUND_CHECK(cpu->Y)
 
-// branch
+#define _IND_4_Y()                                                             \
+    cpu->AB = cpu->AD + cpu->Y
 
-#define _BRANCH_0() cpu->AB = cpu->PC++
+// Branch
 
-#define _BRANCH_1(TEST)                                                        \
+#define _BRANCH_0()                                                            \
+    cpu->AB = cpu->PC++
+
+#define _BRANCH_1(FAIL_TEST)                                                   \
     cpu->AB = cpu->PC;                                                         \
     cpu->AD = cpu->PC + (int8_t)cpu->DB;                                       \
-    if (TEST) {                                                                \
+    if (FAIL_TEST) {                                                           \
         _FETCH();                                                              \
     }
 
@@ -146,88 +179,126 @@ void MOS6502_Init(mos6502_t * cpu)
         _FETCH();                                                              \
     }
 
-#define _BRANCH_3() cpu->PC = cpu->AD
+#define _BRANCH_3()                                                            \
+    cpu->PC = cpu->AD
+
+// Stack
+
+#define _PUSH()                                                                \
+    cpu->AB = (0x0100 | cpu->S--)
+
+#define _PULL()                                                                \
+    cpu->AB = (0x0100 | cpu->S++);
+
+#define _PEEK()                                                                \
+    cpu->AB = (0x0100 | cpu->S);
+
+// clang-format on
 
 // Instructions
 
-#define _SET_NZ(VALUE)                                                         \
-    cpu->P.N = ((VALUE) >> 7) & 0x01;                                          \
-    cpu->P.Z = ((VALUE) == 0)
+#define _INC(VALUE)                                                            \
+    ++(VALUE);                                                                 \
+    _SET_NZ_FLAGS(VALUE)
+
+#define _DEC(VALUE)                                                            \
+    --(VALUE);                                                                 \
+    _SET_NZ_FLAGS(VALUE)
 
 #define _ASL(VALUE)                                                            \
-    cpu->P.C = (((VALUE)&0x80) >> 7);                                          \
+    cpu->FC = ((VALUE)&0x80);                                                  \
     (VALUE) <<= 1;                                                             \
-    _SET_NZ((VALUE))
+    _SET_NZ_FLAGS(VALUE)
 
 #define _LSR(VALUE)                                                            \
-    cpu->P.C = ((VALUE)&0x01);                                                 \
+    cpu->FC = ((VALUE)&0x01);                                                  \
     (VALUE) >>= 1;                                                             \
-    _SET_NZ((VALUE))
+    _SET_NZ_FLAGS(VALUE)
 
 #define _ROL(VALUE)                                                            \
     {                                                                          \
-        uint16_t result = ((VALUE) << 1) | cpu->P.C;                           \
-        cpu->P.C = ((result & 0x0100) >> 8);                                   \
+        uint16_t result = ((VALUE) << 1) | (cpu->FC ? 1 : 0);                  \
+        cpu->FC = (result & 0x0100);                                           \
         (VALUE) = (result & 0xFF);                                             \
-        _SET_NZ((VALUE));                                                      \
+        _SET_NZ_FLAGS(VALUE);                                                  \
     }
 
 #define _ROR(VALUE)                                                            \
     {                                                                          \
-        uint16_t result = ((cpu->P.C << 8) | (VALUE)) >> 1;                    \
-        cpu->P.C = ((VALUE)&0x01);                                             \
+        uint16_t result = ((cpu->FC ? 0x100 : 0) | (VALUE)) >> 1;              \
+        cpu->FC = ((VALUE)&0x01);                                              \
         (VALUE) = (result & 0xFF);                                             \
-        _SET_NZ((VALUE));                                                      \
+        _SET_NZ_FLAGS(VALUE);                                                  \
     }
 
-#define _PUSH(VALUE)                                                           \
-    cpu->DB = (VALUE);                                                         \
-    cpu->ABH = 0x01;                                                           \
-    cpu->ABL = cpu->S--;                                                       \
-    _SET_WRITE()
-
-#define _PULL()                                                                \
-    cpu->ABH = 0x01;                                                           \
-    cpu->ABL = cpu->S++;
+#define _AND(VALUE)                                                            \
+    cpu->A &= (VALUE);                                                         \
+    _SET_NZ_FLAGS(cpu->A)
 
 #define _ORA()                                                                 \
     cpu->A |= cpu->DB;                                                         \
-    _SET_NZ(cpu->A)
+    _SET_NZ_FLAGS(cpu->A)
 
 #define _EOR()                                                                 \
     cpu->A ^= cpu->DB;                                                         \
-    _SET_NZ(cpu->A)
+    _SET_NZ_FLAGS(cpu->A)
 
 #define _CMP(REG, VALUE)                                                       \
     {                                                                          \
         uint16_t result = (REG) - (VALUE);                                     \
-        cpu->P.C = !((result & 0xFF00) > 0);                                   \
-        _SET_NZ(result & 0x00FF);                                              \
+        cpu->FC = !(result & 0xFF00);                                          \
+        _SET_NZ_FLAGS(result & 0x00FF);                                        \
     }
 
 #define _ADC(VALUE)                                                            \
-    if (cpu->BCDEnabled && cpu->P.D) {                                         \
+    if (cpu->BCDEnabled && cpu->FD) {                                          \
         /* TODO: Support BCD */                                                \
     }                                                                          \
     else {                                                                     \
-        uint16_t result = cpu->A + (VALUE) + cpu->P.C;                         \
-        cpu->P.V = ((~(cpu->A ^ (VALUE)) & (cpu->A ^ result) & 0x80) > 0);     \
-        cpu->P.C = ((result & 0xFF00) > 0);                                    \
+        uint16_t result = cpu->A + (VALUE) + (cpu->FC ? 1 : 0);                \
+        cpu->FV = (~(cpu->A ^ (VALUE)) & (cpu->A ^ result) & 0x80);            \
+        cpu->FC = (result & 0xFF00);                                           \
         cpu->A = (result & 0xFF);                                              \
-        _SET_NZ(cpu->A);                                                       \
+        _SET_NZ_FLAGS(cpu->A);                                                 \
     }
 
 #define _SBC(VALUE)                                                            \
-    if (cpu->BCDEnabled && cpu->P.D) {                                         \
+    if (cpu->BCDEnabled && cpu->FD) {                                          \
         /* TODO: Support BCD */                                                \
     }                                                                          \
     else {                                                                     \
-        uint16_t result = cpu->A - (VALUE) - (cpu->P.C ? 0 : 1);               \
-        cpu->P.V = (((cpu->A ^ (VALUE)) & (cpu->A ^ result) & 0x80) > 0);      \
-        cpu->P.C = !(result & 0xFF00);                                         \
+        uint16_t result = cpu->A - (VALUE) - (cpu->FC ? 0 : 1);                \
+        cpu->FV = ((cpu->A ^ (VALUE)) & (cpu->A ^ result) & 0x80);             \
+        cpu->FC = !(result & 0xFF00);                                          \
         cpu->A = (result & 0xFF);                                              \
-        _SET_NZ(cpu->A);                                                       \
+        _SET_NZ_FLAGS(cpu->A);                                                 \
     }
+
+void MOS6502_Init(mos6502_t * cpu)
+{
+    cpu->AB = 0x0000;
+    cpu->DB = 0x00;
+
+    cpu->IR = 0x0000;
+
+    cpu->PC = 0x0000;
+    cpu->AD = 0x0000;
+
+    cpu->A = 0xAA;
+    cpu->X = 0x00;
+    cpu->Y = 0x00;
+    cpu->S = 0xFD;
+    _SET_FLAGS(0x34);
+
+    cpu->RW = 1;
+    cpu->SYNC = 1;
+    cpu->IRQ = 0;
+    cpu->NMI = 0;
+    cpu->RDY = 0;
+    cpu->RES = 1;
+
+    cpu->BCDEnabled = true;
+}
 
 void MOS6502_Tick(mos6502_t * cpu)
 {
@@ -242,24 +313,22 @@ void MOS6502_Tick(mos6502_t * cpu)
         ++cpu->PC;
     }
 
-    cpu->RW = 1;
+    _SET_READ();
     switch (cpu->IR++) {
     // BRK
-    case _CYCLE(0x00, 0): cpu->AB = cpu->PC; break;
+    case _CYCLE(0x00, 0): _STALL(); break;
     case _CYCLE(0x00, 1):
         if (/* flags crap? */ false) {
             ++cpu->PC;
         }
-        cpu->ADH = 0x01;
-        cpu->ADL = cpu->S--;
+        _PUSH();
         cpu->DB = cpu->PCH;
         if (/* more flags crap? */ false) {
             _SET_WRITE();
         }
         break;
     case _CYCLE(0x00, 2):
-        cpu->ADH = 0x01;
-        cpu->ADL = cpu->S--;
+        _PUSH();
         cpu->DB = cpu->PCL;
         if (/* more flags crap? */ false) {
             _SET_WRITE();
@@ -267,8 +336,7 @@ void MOS6502_Tick(mos6502_t * cpu)
         break;
     case _CYCLE(0x00, 3):
         cpu->ADH = 0x01;
-        cpu->ADL = cpu->P.raw; // TODO: Set unused flag
-        cpu->ADL |= (1 << 5) | (1 << 4);
+        cpu->ADL = _GET_FLAGS() | _MASK_FB;
         cpu->DB = cpu->PCL;
         if (/* even more flags crap?? */ false) {
             cpu->AD = 0xFFFC;
@@ -285,8 +353,8 @@ void MOS6502_Tick(mos6502_t * cpu)
         break;
     case _CYCLE(0x00, 4):
         cpu->AB = cpu->AD++;
-        cpu->P.B = 1;
-        cpu->P.I = 1;
+        // cpu->FB = true;
+        cpu->FI = true;
         // brk_flags
         break;
     case _CYCLE(0x00, 5):
@@ -330,7 +398,11 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // PHP
     case _CYCLE(0x08, 0): _STALL(); break;
-    case _CYCLE(0x08, 1): _PUSH(cpu->P.raw | 0b00110000); break;
+    case _CYCLE(0x08, 1):
+        _PUSH();
+        cpu->DB = _GET_FLAGS() | _MASK_FB;
+        _SET_WRITE();
+        break;
     case _CYCLE(0x08, 2): _FETCH(); break;
 
     // ORA immediate
@@ -360,10 +432,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x0E, 0): _ABS_0(); break;
     case _CYCLE(0x0E, 1): _ABS_1(); break;
     case _CYCLE(0x0E, 2): _ABS_2(); break;
-    case _CYCLE(0x0E, 3):
-        cpu->AD = cpu->DB;
-        _SET_WRITE();
-        break;
+    case _CYCLE(0x0E, 3): _SET_WRITE(); break;
     case _CYCLE(0x0E, 4):
         _ASL(cpu->DB);
         _SET_WRITE();
@@ -372,7 +441,7 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // BPL
     case _CYCLE(0x10, 0): _BRANCH_0(); break;
-    case _CYCLE(0x10, 1): _BRANCH_1(cpu->P.N); break;
+    case _CYCLE(0x10, 1): _BRANCH_1(cpu->FN); break;
     case _CYCLE(0x10, 2): _BRANCH_2(); break;
     case _CYCLE(0x10, 3):
         _BRANCH_3();
@@ -383,10 +452,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x11, 0): _IND_0(); break;
     case _CYCLE(0x11, 1): _IND_1(); break;
     case _CYCLE(0x11, 2): _IND_2_Y(); break;
-    case _CYCLE(0x11, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x11, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0x11, 4): _IND_4_Y(); break;
     case _CYCLE(0x11, 5):
         _ORA();
@@ -416,17 +482,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CLC
     case _CYCLE(0x18, 0): _STALL(); break;
     case _CYCLE(0x18, 1):
-        cpu->P.C = 0;
+        cpu->FC = 0;
         _FETCH();
         break;
 
     // ORA absolute,Y
     case _CYCLE(0x19, 0): _ABS_0(); break;
     case _CYCLE(0x19, 1): _ABS_1(); break;
-    case _CYCLE(0x19, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x19, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0x19, 3): _ABS_3_Y(); break;
     case _CYCLE(0x19, 4):
         _ORA();
@@ -436,10 +499,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // ORA absolute,X
     case _CYCLE(0x1D, 0): _ABS_0(); break;
     case _CYCLE(0x1D, 1): _ABS_1(); break;
-    case _CYCLE(0x1D, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0x1D, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0x1D, 3): _ABS_3_X(); break;
     case _CYCLE(0x1D, 4):
         _ORA();
@@ -459,15 +519,22 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x1E, 6): _FETCH(); break;
 
     // JSR
-    case _CYCLE(0x20, 0): _IMM(); break;
+    case _CYCLE(0x20, 0): _ABS_0(); break;
     case _CYCLE(0x20, 1):
-        cpu->ABH = 0x01;
-        cpu->ABL = cpu->S;
+        _PEEK();
         cpu->ADL = cpu->DB;
         break;
-    case _CYCLE(0x20, 2): _PUSH(cpu->PCH); break;
-    case _CYCLE(0x20, 3): _PUSH(cpu->PCL); break;
-    case _CYCLE(0x20, 4): cpu->AB = cpu->PC; break;
+    case _CYCLE(0x20, 2):
+        _PUSH();
+        _SET_WRITE();
+        cpu->DB = cpu->PCH;
+        break;
+    case _CYCLE(0x20, 3):
+        _PUSH();
+        _SET_WRITE();
+        cpu->DB = cpu->PCL;
+        break;
+    case _CYCLE(0x20, 4): _STALL(); break;
     case _CYCLE(0x20, 5):
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
@@ -481,8 +548,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x21, 3): _IND_3_X(); break;
     case _CYCLE(0x21, 4): _IND_4_X(); break;
     case _CYCLE(0x21, 5):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -490,9 +556,9 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x24, 0): _ZPG_0(); break;
     case _CYCLE(0x24, 1): _ZPG_1(); break;
     case _CYCLE(0x24, 2):
-        cpu->P.N = (cpu->DB >> 7);
-        cpu->P.V = (cpu->DB >> 6);
-        cpu->P.Z = ((cpu->A & cpu->DB) == 0);
+        cpu->FN = (cpu->DB & _MASK_FN);
+        cpu->FV = (cpu->DB & _MASK_FV);
+        cpu->FZ = ((cpu->A & cpu->DB) == 0);
         _FETCH();
         break;
 
@@ -500,8 +566,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x25, 0): _ZPG_0(); break;
     case _CYCLE(0x25, 1): _ZPG_1(); break;
     case _CYCLE(0x25, 2):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -518,22 +583,16 @@ void MOS6502_Tick(mos6502_t * cpu)
     // PLP
     case _CYCLE(0x28, 0): _STALL(); break;
     case _CYCLE(0x28, 1): _PULL(); break;
-    case _CYCLE(0x28, 2):
-        // Page Boundary
-        cpu->ABL = cpu->S;
-        break;
+    case _CYCLE(0x28, 2): _PEEK(); break;
     case _CYCLE(0x28, 3):
-        cpu->P.raw = cpu->DB;
-        cpu->P.raw &= 0b11101111; // Ignore B
-        cpu->P.raw |= 0b00100000; // Set "unused"
+        _SET_FLAGS(cpu->DB & ~_MASK_FB);
         _FETCH();
         break;
 
     // AND immediate
     case _CYCLE(0x29, 0): _IMM(); break;
     case _CYCLE(0x29, 1):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -549,9 +608,9 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x2C, 1): _ABS_1(); break;
     case _CYCLE(0x2C, 2): _ABS_2(); break;
     case _CYCLE(0x2C, 3):
-        cpu->P.N = (cpu->DB >> 7);
-        cpu->P.V = (cpu->DB >> 6);
-        cpu->P.Z = ((cpu->A & cpu->DB) == 0);
+        cpu->FN = (cpu->DB & _MASK_FN);
+        cpu->FV = (cpu->DB & _MASK_FV);
+        cpu->FZ = ((cpu->A & cpu->DB) == 0);
         _FETCH();
         break;
 
@@ -560,8 +619,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x2D, 1): _ABS_1(); break;
     case _CYCLE(0x2D, 2): _ABS_2(); break;
     case _CYCLE(0x2D, 3):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -578,7 +636,7 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // BMI
     case _CYCLE(0x30, 0): _BRANCH_0(); break;
-    case _CYCLE(0x30, 1): _BRANCH_1(!cpu->P.N); break;
+    case _CYCLE(0x30, 1): _BRANCH_1(!cpu->FN); break;
     case _CYCLE(0x30, 2): _BRANCH_2(); break;
     case _CYCLE(0x30, 3):
         _BRANCH_3();
@@ -589,14 +647,10 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x31, 0): _IND_0(); break;
     case _CYCLE(0x31, 1): _IND_1(); break;
     case _CYCLE(0x31, 2): _IND_2_Y(); break;
-    case _CYCLE(0x31, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x31, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0x31, 4): _IND_4_Y(); break;
     case _CYCLE(0x31, 5):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -605,8 +659,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x35, 1): _ZPG_1(); break;
     case _CYCLE(0x35, 2): _ZPG_2_X(); break;
     case _CYCLE(0x35, 3):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -624,35 +677,27 @@ void MOS6502_Tick(mos6502_t * cpu)
     // SEC
     case _CYCLE(0x38, 0): _STALL(); break;
     case _CYCLE(0x38, 1):
-        cpu->P.C = true;
+        cpu->FC = true;
         _FETCH();
         break;
 
     // AND absolute,Y
     case _CYCLE(0x39, 0): _ABS_0(); break;
     case _CYCLE(0x39, 1): _ABS_1(); break;
-    case _CYCLE(0x39, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x39, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0x39, 3): _ABS_3_Y(); break;
     case _CYCLE(0x39, 4):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
     // AND absolute,X
     case _CYCLE(0x3D, 0): _ABS_0(); break;
     case _CYCLE(0x3D, 1): _ABS_1(); break;
-    case _CYCLE(0x3D, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0x3D, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0x3D, 3): _ABS_3_X(); break;
     case _CYCLE(0x3D, 4):
-        cpu->A &= cpu->DB;
-        _SET_NZ(cpu->A);
+        _AND(cpu->DB);
         _FETCH();
         break;
 
@@ -674,13 +719,11 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x40, 2): _PULL(); break;
     case _CYCLE(0x40, 3):
         _PULL();
-        cpu->P.raw = cpu->DB;
-        cpu->P.raw &= 0b11101111; // Ignore B
-        cpu->P.raw |= 0b00100000; // Set "unused"
+        _SET_FLAGS(cpu->DB & ~_MASK_FB);
         break;
     case _CYCLE(0x40, 4):
         cpu->PCL = cpu->DB;
-        cpu->ABL = cpu->S;
+        _PEEK();
         break;
     case _CYCLE(0x40, 5):
         cpu->PCH = cpu->DB;
@@ -718,7 +761,11 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // PHA
     case _CYCLE(0x48, 0): _STALL(); break;
-    case _CYCLE(0x48, 1): _PUSH(cpu->A); break;
+    case _CYCLE(0x48, 1):
+        _PUSH();
+        cpu->DB = cpu->A;
+        _SET_WRITE();
+        break;
     case _CYCLE(0x48, 2): _FETCH(); break;
 
     // EOR immediate
@@ -736,13 +783,10 @@ void MOS6502_Tick(mos6502_t * cpu)
         break;
 
     // JMP absolute
-    case _CYCLE(0x4C, 0): cpu->AB = cpu->PC++; break;
-    case _CYCLE(0x4C, 1):
-        cpu->AB = cpu->PC++;
-        cpu->ADL = cpu->DB;
-        break;
+    case _CYCLE(0x4C, 0): _ABS_0(); break;
+    case _CYCLE(0x4C, 1): _ABS_1(); break;
     case _CYCLE(0x4C, 2):
-        cpu->ADH = cpu->DB;
+        _ABS_2();
         cpu->PC = cpu->AD;
         _FETCH();
         break;
@@ -769,7 +813,7 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // BVC
     case _CYCLE(0x50, 0): _BRANCH_0(); break;
-    case _CYCLE(0x50, 1): _BRANCH_1(cpu->P.V); break;
+    case _CYCLE(0x50, 1): _BRANCH_1(cpu->FV); break;
     case _CYCLE(0x50, 2): _BRANCH_2(); break;
     case _CYCLE(0x50, 3):
         _BRANCH_3();
@@ -780,10 +824,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x51, 0): _IND_0(); break;
     case _CYCLE(0x51, 1): _IND_1(); break;
     case _CYCLE(0x51, 2): _IND_2_Y(); break;
-    case _CYCLE(0x51, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x51, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0x51, 4): _IND_4_Y(); break;
     case _CYCLE(0x51, 5):
         _EOR();
@@ -813,17 +854,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CLI
     case _CYCLE(0x58, 0): _STALL(); break;
     case _CYCLE(0x58, 1):
-        cpu->P.I = false;
+        cpu->FI = false;
         _FETCH();
         break;
 
     // EOR absolute,Y
     case _CYCLE(0x59, 0): _ABS_0(); break;
     case _CYCLE(0x59, 1): _ABS_1(); break;
-    case _CYCLE(0x59, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x59, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0x59, 3): _ABS_3_Y(); break;
     case _CYCLE(0x59, 4):
         _EOR();
@@ -833,10 +871,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // EOR absolute,X
     case _CYCLE(0x5D, 0): _ABS_0(); break;
     case _CYCLE(0x5D, 1): _ABS_1(); break;
-    case _CYCLE(0x5D, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0x5D, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0x5D, 3): _ABS_3_X(); break;
     case _CYCLE(0x5D, 4):
         _EOR();
@@ -860,7 +895,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x60, 1): _PULL(); break;
     case _CYCLE(0x60, 2): _PULL(); break;
     case _CYCLE(0x60, 3):
-        cpu->ABL = cpu->S;
+        _PEEK();
         cpu->ADL = cpu->DB;
         break;
     case _CYCLE(0x60, 4):
@@ -902,10 +937,10 @@ void MOS6502_Tick(mos6502_t * cpu)
     // PLA
     case _CYCLE(0x68, 0): _STALL(); break;
     case _CYCLE(0x68, 1): _PULL(); break;
-    case _CYCLE(0x68, 2): cpu->ABL = cpu->S; break;
+    case _CYCLE(0x68, 2): _PEEK(); break;
     case _CYCLE(0x68, 3):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -924,19 +959,12 @@ void MOS6502_Tick(mos6502_t * cpu)
         break;
 
     // JMP (absolute)
-    case _CYCLE(0x6C, 0): cpu->AB = cpu->PC++; break;
-    case _CYCLE(0x6C, 1):
-        cpu->AB = cpu->PC++;
-        cpu->ADL = cpu->DB;
-        break;
-    case _CYCLE(0x6C, 2):
-        cpu->ADH = cpu->DB;
-        cpu->AB = cpu->AD;
-        break;
+    case _CYCLE(0x6C, 0): _ABS_0(); break;
+    case _CYCLE(0x6C, 1): _ABS_1(); break;
+    case _CYCLE(0x6C, 2): _ABS_2(); break;
     case _CYCLE(0x6C, 3):
-        ++cpu->ADL;
-        cpu->AB = cpu->AD;
         cpu->ADL = cpu->DB;
+        ++cpu->ABL;
         break;
     case _CYCLE(0x6C, 4):
         cpu->ADH = cpu->DB;
@@ -966,7 +994,7 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // BVS
     case _CYCLE(0x70, 0): _BRANCH_0(); break;
-    case _CYCLE(0x70, 1): _BRANCH_1(!cpu->P.V); break;
+    case _CYCLE(0x70, 1): _BRANCH_1(!cpu->FV); break;
     case _CYCLE(0x70, 2): _BRANCH_2(); break;
     case _CYCLE(0x70, 3):
         _BRANCH_3();
@@ -977,10 +1005,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x71, 0): _IND_0(); break;
     case _CYCLE(0x71, 1): _IND_1(); break;
     case _CYCLE(0x71, 2): _IND_2_Y(); break;
-    case _CYCLE(0x71, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x71, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0x71, 4): _IND_4_Y(); break;
     case _CYCLE(0x71, 5):
         _ADC(cpu->DB);
@@ -1010,17 +1035,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     // SEI
     case _CYCLE(0x78, 0): _STALL(); break;
     case _CYCLE(0x78, 1):
-        cpu->P.I = true;
+        cpu->FI = true;
         _FETCH();
         break;
 
     // ADC absolute,Y
     case _CYCLE(0x79, 0): _ABS_0(); break;
     case _CYCLE(0x79, 1): _ABS_1(); break;
-    case _CYCLE(0x79, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0x79, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0x79, 3): _ABS_3_Y(); break;
     case _CYCLE(0x79, 4):
         _ADC(cpu->DB);
@@ -1030,10 +1052,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // ADC absolute,X
     case _CYCLE(0x7D, 0): _ABS_0(); break;
     case _CYCLE(0x7D, 1): _ABS_1(); break;
-    case _CYCLE(0x7D, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0x7D, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0x7D, 3): _ABS_3_X(); break;
     case _CYCLE(0x7D, 4):
         _ADC(cpu->DB);
@@ -1091,11 +1110,18 @@ void MOS6502_Tick(mos6502_t * cpu)
         break;
     case _CYCLE(0x86, 2): _FETCH(); break;
 
+    // DEY
+    case _CYCLE(0x88, 0): _STALL(); break;
+    case _CYCLE(0x88, 1):
+        _DEC(cpu->Y);
+        _FETCH();
+        break;
+
     // TXA
     case _CYCLE(0x8A, 0): _STALL(); break;
     case _CYCLE(0x8A, 1):
         cpu->A = cpu->X;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1131,7 +1157,7 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // BCC
     case _CYCLE(0x90, 0): _BRANCH_0(); break;
-    case _CYCLE(0x90, 1): _BRANCH_1(cpu->P.C); break;
+    case _CYCLE(0x90, 1): _BRANCH_1(cpu->FC); break;
     case _CYCLE(0x90, 2): _BRANCH_2(); break;
     case _CYCLE(0x90, 3):
         _BRANCH_3();
@@ -1184,7 +1210,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0x98, 0): _STALL(); break;
     case _CYCLE(0x98, 1):
         cpu->A = cpu->Y;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1221,7 +1247,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA0, 0): _IMM(); break;
     case _CYCLE(0xA0, 1):
         cpu->Y = cpu->DB;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
         break;
 
@@ -1233,7 +1259,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA1, 4): _IND_4_X(); break;
     case _CYCLE(0xA1, 5):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1241,7 +1267,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA2, 0): _IMM(); break;
     case _CYCLE(0xA2, 1):
         cpu->X = cpu->DB;
-        _SET_NZ(cpu->X);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
@@ -1250,7 +1276,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA4, 1): _ZPG_1(); break;
     case _CYCLE(0xA4, 2):
         cpu->Y = cpu->DB;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
         break;
 
@@ -1259,7 +1285,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA5, 1): _ZPG_1(); break;
     case _CYCLE(0xA5, 2):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1268,7 +1294,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA6, 1): _ZPG_1(); break;
     case _CYCLE(0xA6, 2):
         cpu->X = cpu->DB;
-        _SET_NZ(cpu->X);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
@@ -1276,7 +1302,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA8, 0): _STALL(); break;
     case _CYCLE(0xA8, 1):
         cpu->Y = cpu->A;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
         break;
 
@@ -1284,7 +1310,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xA9, 0): _IMM(); break;
     case _CYCLE(0xA9, 1):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1292,7 +1318,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xAA, 0): _STALL(); break;
     case _CYCLE(0xAA, 1):
         cpu->X = cpu->A;
-        _SET_NZ(cpu->X);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
@@ -1302,7 +1328,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xAC, 2): _ABS_2(); break;
     case _CYCLE(0xAC, 3):
         cpu->Y = cpu->DB;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
         break;
 
@@ -1312,7 +1338,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xAD, 2): _ABS_2(); break;
     case _CYCLE(0xAD, 3):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1322,13 +1348,13 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xAE, 2): _ABS_2(); break;
     case _CYCLE(0xAE, 3):
         cpu->X = cpu->DB;
-        _SET_NZ(cpu->X);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
     // BCS
     case _CYCLE(0xB0, 0): _BRANCH_0(); break;
-    case _CYCLE(0xB0, 1): _BRANCH_1(!cpu->P.C); break;
+    case _CYCLE(0xB0, 1): _BRANCH_1(!cpu->FC); break;
     case _CYCLE(0xB0, 2): _BRANCH_2(); break;
     case _CYCLE(0xB0, 3):
         _BRANCH_3();
@@ -1339,14 +1365,11 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xB1, 0): _IND_0(); break;
     case _CYCLE(0xB1, 1): _IND_1(); break;
     case _CYCLE(0xB1, 2): _IND_2_Y(); break;
-    case _CYCLE(0xB1, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0xB1, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0xB1, 4): _IND_4_Y(); break;
     case _CYCLE(0xB1, 5):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1356,7 +1379,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xB4, 2): _ZPG_2_X(); break;
     case _CYCLE(0xB4, 3):
         cpu->Y = cpu->DB;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
         break;
 
@@ -1366,7 +1389,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xB5, 2): _ZPG_2_X(); break;
     case _CYCLE(0xB5, 3):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1376,36 +1399,25 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xB6, 2): _ZPG_2_Y(); break;
     case _CYCLE(0xB6, 3):
         cpu->X = cpu->DB;
-        _SET_NZ(cpu->X);
-        _FETCH();
-        break;
-
-    // DEY
-    case _CYCLE(0x88, 0): _STALL(); break;
-    case _CYCLE(0x88, 1):
-        --cpu->Y;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
     // CLV
     case _CYCLE(0xB8, 0): _STALL(); break;
     case _CYCLE(0xB8, 1):
-        cpu->P.V = false;
+        cpu->FV = false;
         _FETCH();
         break;
 
     // LDA absolute,Y
     case _CYCLE(0xB9, 0): _ABS_0(); break;
     case _CYCLE(0xB9, 1): _ABS_1(); break;
-    case _CYCLE(0xB9, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0xB9, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0xB9, 3): _ABS_3_Y(); break;
     case _CYCLE(0xB9, 4):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
@@ -1413,46 +1425,40 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xBA, 0): _STALL(); break;
     case _CYCLE(0xBA, 1):
         cpu->X = cpu->S;
-        _SET_NZ(cpu->X);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
     // LDY absolute,X
     case _CYCLE(0xBC, 0): _ABS_0(); break;
     case _CYCLE(0xBC, 1): _ABS_1(); break;
-    case _CYCLE(0xBC, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0xBC, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0xBC, 3): _ABS_3_X(); break;
     case _CYCLE(0xBC, 4):
         cpu->Y = cpu->DB;
-        _SET_NZ(cpu->Y);
+        _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
         break;
 
     // LDA absolute,X
     case _CYCLE(0xBD, 0): _ABS_0(); break;
     case _CYCLE(0xBD, 1): _ABS_1(); break;
-    case _CYCLE(0xBD, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0xBD, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0xBD, 3): _ABS_3_X(); break;
     case _CYCLE(0xBD, 4):
         cpu->A = cpu->DB;
-        _SET_NZ(cpu->A);
+        _SET_NZ_FLAGS(cpu->A);
         _FETCH();
         break;
 
     // LDX absolute,Y
     case _CYCLE(0xBE, 0): _ABS_0(); break;
     case _CYCLE(0xBE, 1): _ABS_1(); break;
-    case _CYCLE(0xBE, 2): _ABS_2_Y(); _PAGE_BOUND_CHECK_SKIP(cpu->Y); break;
+    case _CYCLE(0xBE, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0xBE, 3): _ABS_3_Y(); break;
     case _CYCLE(0xBE, 4):
         cpu->X = cpu->DB;
-        _SET_NZ(cpu->X);
+        _SET_NZ_FLAGS(cpu->X);
         _FETCH();
         break;
 
@@ -1495,8 +1501,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xC6, 1): _ZPG_1(); break;
     case _CYCLE(0xC6, 2): _SET_WRITE(); break;
     case _CYCLE(0xC6, 3):
-        --cpu->DB;
-        _SET_NZ(cpu->DB);
+        _DEC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xC6, 4): _FETCH(); break;
@@ -1511,16 +1516,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     // INY
     case _CYCLE(0xC8, 0): _STALL(); break;
     case _CYCLE(0xC8, 1):
-        ++cpu->Y;
-        _SET_NZ(cpu->Y);
+        _INC(cpu->Y);
         _FETCH();
         break;
 
     // DEX
     case _CYCLE(0xCA, 0): _STALL(); break;
     case _CYCLE(0xCA, 1):
-        --cpu->X;
-        _SET_NZ(cpu->X);
+        _DEC(cpu->X);
         _FETCH();
         break;
 
@@ -1548,15 +1551,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xCE, 2): _ABS_2(); break;
     case _CYCLE(0xCE, 3): _SET_WRITE(); break;
     case _CYCLE(0xCE, 4):
-        --cpu->DB;
-        _SET_NZ(cpu->DB);
+        _DEC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xCE, 5): _FETCH(); break;
 
     // BNE
     case _CYCLE(0xD0, 0): _BRANCH_0(); break;
-    case _CYCLE(0xD0, 1): _BRANCH_1(cpu->P.Z); break;
+    case _CYCLE(0xD0, 1): _BRANCH_1(cpu->FZ); break;
     case _CYCLE(0xD0, 2): _BRANCH_2(); break;
     case _CYCLE(0xD0, 3):
         _BRANCH_3();
@@ -1567,10 +1569,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xD1, 0): _IND_0(); break;
     case _CYCLE(0xD1, 1): _IND_1(); break;
     case _CYCLE(0xD1, 2): _IND_2_Y(); break;
-    case _CYCLE(0xD1, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0xD1, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0xD1, 4): _IND_4_Y(); break;
     case _CYCLE(0xD1, 5):
         _CMP(cpu->A, cpu->DB);
@@ -1592,8 +1591,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xD6, 2): _ZPG_2_X(); break;
     case _CYCLE(0xD6, 3): _SET_WRITE(); break;
     case _CYCLE(0xD6, 4):
-        --cpu->DB;
-        _SET_NZ(cpu->DB);
+        _DEC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xD6, 5): _FETCH(); break;
@@ -1601,17 +1599,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CLD
     case _CYCLE(0xD8, 0): _STALL(); break;
     case _CYCLE(0xD8, 1):
-        cpu->P.D = false;
+        cpu->FD = false;
         _FETCH();
         break;
 
     // CMP absolute,Y
     case _CYCLE(0xD9, 0): _ABS_0(); break;
     case _CYCLE(0xD9, 1): _ABS_1(); break;
-    case _CYCLE(0xD9, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0xD9, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0xD9, 3): _ABS_3_Y(); break;
     case _CYCLE(0xD9, 4):
         _CMP(cpu->A, cpu->DB);
@@ -1621,10 +1616,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CMP absolute,X
     case _CYCLE(0xDD, 0): _ABS_0(); break;
     case _CYCLE(0xDD, 1): _ABS_1(); break;
-    case _CYCLE(0xDD, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0xDD, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0xDD, 3): _ABS_3_X(); break;
     case _CYCLE(0xDD, 4):
         _CMP(cpu->A, cpu->DB);
@@ -1638,8 +1630,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xDE, 3): _ABS_3_X(); break;
     case _CYCLE(0xDE, 4): _SET_WRITE(); break;
     case _CYCLE(0xDE, 5):
-        --cpu->DB;
-        _SET_NZ(cpu->DB);
+        _DEC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xDE, 6): _FETCH(); break;
@@ -1683,11 +1674,17 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xE6, 1): _ZPG_1(); break;
     case _CYCLE(0xE6, 2): _SET_WRITE(); break;
     case _CYCLE(0xE6, 3):
-        ++cpu->DB;
-        _SET_NZ(cpu->DB);
+        _INC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xE6, 4): _FETCH(); break;
+
+    // INX
+    case _CYCLE(0xE8, 0): _STALL(); break;
+    case _CYCLE(0xE8, 1):
+        _INC(cpu->X);
+        _FETCH();
+        break;
 
     // SBC immediate
     case _CYCLE(0xE9, 0): _IMM(); break;
@@ -1695,15 +1692,6 @@ void MOS6502_Tick(mos6502_t * cpu)
         _SBC(cpu->DB);
         _FETCH();
         break;
-
-    // INX
-    case _CYCLE(0xE8, 0): _STALL(); break;
-    case _CYCLE(0xE8, 1):
-        ++cpu->X;
-        _SET_NZ(cpu->X);
-        _FETCH();
-        break;
-
     // NOP
     case _CYCLE(0xEA, 0): _STALL(); break;
     case _CYCLE(0xEA, 1): _FETCH(); break;
@@ -1714,8 +1702,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xEE, 2): _ABS_2(); break;
     case _CYCLE(0xEE, 3): _SET_WRITE(); break;
     case _CYCLE(0xEE, 4):
-        ++cpu->DB;
-        _SET_NZ(cpu->DB);
+        _INC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xEE, 5): _FETCH(); break;
@@ -1740,7 +1727,7 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     // BEQ
     case _CYCLE(0xF0, 0): _BRANCH_0(); break;
-    case _CYCLE(0xF0, 1): _BRANCH_1(!cpu->P.Z); break;
+    case _CYCLE(0xF0, 1): _BRANCH_1(!cpu->FZ); break;
     case _CYCLE(0xF0, 2): _BRANCH_2(); break;
     case _CYCLE(0xF0, 3):
         _BRANCH_3();
@@ -1751,10 +1738,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xF1, 0): _IND_0(); break;
     case _CYCLE(0xF1, 1): _IND_1(); break;
     case _CYCLE(0xF1, 2): _IND_2_Y(); break;
-    case _CYCLE(0xF1, 3):
-        _IND_3_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0xF1, 3): _IND_3_Y_PGCHK(); break;
     case _CYCLE(0xF1, 4): _IND_4_Y(); break;
     case _CYCLE(0xF1, 5):
         _SBC(cpu->DB);
@@ -1776,8 +1760,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xF6, 2): _ZPG_2_X(); break;
     case _CYCLE(0xF6, 3): _SET_WRITE(); break;
     case _CYCLE(0xF6, 4):
-        ++cpu->DB;
-        _SET_NZ(cpu->DB);
+        _INC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xF6, 5): _FETCH(); break;
@@ -1785,17 +1768,14 @@ void MOS6502_Tick(mos6502_t * cpu)
     // SED
     case _CYCLE(0xF8, 0): _STALL(); break;
     case _CYCLE(0xF8, 1):
-        cpu->P.D = true;
+        cpu->FD = true;
         _FETCH();
         break;
 
     // SBC absolute,Y
     case _CYCLE(0xF9, 0): _ABS_0(); break;
     case _CYCLE(0xF9, 1): _ABS_1(); break;
-    case _CYCLE(0xF9, 2):
-        _ABS_2_Y();
-        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
-        break;
+    case _CYCLE(0xF9, 2): _ABS_2_Y_PGCHK(); break;
     case _CYCLE(0xF9, 3): _ABS_3_Y(); break;
     case _CYCLE(0xF9, 4):
         _SBC(cpu->DB);
@@ -1805,10 +1785,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // SBC absolute,X
     case _CYCLE(0xFD, 0): _ABS_0(); break;
     case _CYCLE(0xFD, 1): _ABS_1(); break;
-    case _CYCLE(0xFD, 2):
-        _ABS_2_X();
-        _PAGE_BOUND_CHECK_SKIP(cpu->X);
-        break;
+    case _CYCLE(0xFD, 2): _ABS_2_X_PGCHK(); break;
     case _CYCLE(0xFD, 3): _ABS_3_X(); break;
     case _CYCLE(0xFD, 4):
         _SBC(cpu->DB);
@@ -1822,8 +1799,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xFE, 3): _ABS_3_X(); break;
     case _CYCLE(0xFE, 4): _SET_WRITE(); break;
     case _CYCLE(0xFE, 5):
-        ++cpu->DB;
-        _SET_NZ(cpu->DB);
+        _INC(cpu->DB);
         _SET_WRITE();
         break;
     case _CYCLE(0xFE, 6): _FETCH(); break;
@@ -1836,4 +1812,14 @@ void MOS6502_Tick(mos6502_t * cpu)
         assert(false);
         break;
     };
+}
+
+void MOS6502_SetStatusRegister(mos6502_t * cpu, uint8_t p)
+{
+    _SET_FLAGS(p);
+}
+
+uint8_t MOS6502_GetStatusRegister(mos6502_t * cpu)
+{
+    return _GET_FLAGS();
 }

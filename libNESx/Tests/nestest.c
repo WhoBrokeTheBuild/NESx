@@ -1,9 +1,9 @@
-#include <string.h>
-#include <stdio.h>
 #include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
 
-#include <NESx/NESx.h>
 #include <NESx/MMU.h>
+#include <NESx/NESx.h>
 
 typedef struct log_entry
 {
@@ -11,7 +11,7 @@ typedef struct log_entry
     unsigned A;
     unsigned X;
     unsigned Y;
-    mos6502_flags_t P;
+    unsigned P;
     unsigned S;
     unsigned Cycle;
 
@@ -20,11 +20,12 @@ typedef struct log_entry
 void parseLogEntry(char * line, log_entry_t * entry)
 {
     sscanf(line, "%X", &entry->PC);
-    sscanf(line + 48, "A:%X X:%X Y:%X P:%hhX SP:%X PPU: %*d, %*d CYC:%d",
+    sscanf(line + 48,
+        "A:%X X:%X Y:%X P:%X SP:%X PPU: %*d, %*d CYC:%d",
         &entry->A,
         &entry->X,
         &entry->Y,
-        &entry->P.raw,
+        &entry->P,
         &entry->S,
         &entry->Cycle);
 }
@@ -51,25 +52,23 @@ bool compareLogEntry(log_entry_t * guess, log_entry_t * check)
         return false;
     }
 
-    if (guess->P.raw != check->P.raw) {
-        printf("P is %02X (%c%c-%c%c%c%c%c), should be %02X (%c%c-%c%c%c%c%c)\n", 
-            guess->P.raw,
-            (guess->P.N ? 'N' : 'n'),
-            (guess->P.V ? 'V' : 'v'),
-            (guess->P.B ? 'B' : 'b'),
-            (guess->P.D ? 'D' : 'd'),
-            (guess->P.I ? 'I' : 'i'),
-            (guess->P.Z ? 'Z' : 'z'),
-            (guess->P.C ? 'C' : 'c'),
-            check->P.raw,
-            (check->P.N ? 'N' : 'n'),
-            (check->P.V ? 'V' : 'v'),
-            (check->P.B ? 'B' : 'b'),
-            (check->P.D ? 'D' : 'd'),
-            (check->P.I ? 'I' : 'i'),
-            (check->P.Z ? 'Z' : 'z'),
-            (check->P.C ? 'C' : 'c')
-        );
+    if (guess->P != check->P) {
+        printf(
+            "P is %02X (%c%c-%c%c%c%c), should be %02X (%c%c-%c%c%c%c)\n",
+            guess->P,
+            ((guess->P & (1 << 7)) ? 'N' : 'n'),
+            ((guess->P & (1 << 6)) ? 'V' : 'v'),
+            ((guess->P & (1 << 3)) ? 'D' : 'd'),
+            ((guess->P & (1 << 2)) ? 'I' : 'i'),
+            ((guess->P & (1 << 1)) ? 'Z' : 'z'),
+            ((guess->P & (1 << 0)) ? 'C' : 'c'),
+            check->P,
+            ((check->P & (1 << 7)) ? 'N' : 'n'),
+            ((check->P & (1 << 6)) ? 'V' : 'v'),
+            ((check->P & (1 << 3)) ? 'D' : 'd'),
+            ((check->P & (1 << 2)) ? 'I' : 'i'),
+            ((check->P & (1 << 1)) ? 'Z' : 'z'),
+            ((check->P & (1 << 0)) ? 'C' : 'c'));
         return false;
     }
 
@@ -104,10 +103,10 @@ int main(int argc, char ** argv)
     }
 
     // https://www.qmtpro.com/~nes/misc/nestest.txt
-    
+
     nes.CPU.PC = 0xC000;
     nes.CPU.AB = nes.CPU.PC;
-    nes.CPU.P.raw = 0x24; // nestest quirk
+    MOS6502_SetStatusRegister(&nes.CPU, 0x24);
 
     char line[256];
     log_entry_t check;
@@ -121,14 +120,14 @@ int main(int argc, char ** argv)
     // const unsigned TOTAL_CYCLES = 26554; // All Tests
 
     while (fgets(line, sizeof(line), fp)) {
-        
+
         parseLogEntry(line, &check);
 
         guess.PC = nes.CPU.PC;
         guess.A = nes.CPU.A;
         guess.X = nes.CPU.X;
         guess.Y = nes.CPU.Y;
-        guess.P.raw = nes.CPU.P.raw;
+        guess.P = MOS6502_GetStatusRegister(&nes.CPU);
         guess.S = nes.CPU.S;
 
         if (!compareLogEntry(&guess, &check)) {
@@ -136,9 +135,9 @@ int main(int argc, char ** argv)
             break;
         }
 
-        printf("Progress %d/%d %3.2f%%\n", 
-            guess.Cycle, 
-            TOTAL_CYCLES, 
+        printf("Progress %d/%d %3.2f%%\n",
+            guess.Cycle,
+            TOTAL_CYCLES,
             ((float)guess.Cycle / (float)TOTAL_CYCLES) * 100.0);
 
         printf("%s", line);
