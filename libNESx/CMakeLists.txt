@@ -1,15 +1,15 @@
 
 FILE(
     GLOB_RECURSE
-    private
-    "Private/*.h"
-    "Private/*.c"
+    public
+    "Public/*.h"
 )
 
 FILE(
     GLOB_RECURSE
-    public
-    "Public/*.h"
+    private
+    "Private/*.h"
+    "Private/*.c"
 )
 
 SET(target libNESx)
@@ -51,25 +51,13 @@ TARGET_LINK_LIBRARIES(
         libMOS6502
 )
 
-# Automation
-
-IF(ClangFormat_FOUND)
-    ADD_CUSTOM_TARGET(
-        format-${target}
-        COMMAND ${ClangFormat_PROGRAM} -i ${public} ${private}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-
-    SET_TARGET_PROPERTIES(
-        format-${target}
-        PROPERTIES 
-            FOLDER "Automation"
-    )
-
-    ADD_DEPENDENCIES(format format-${target})
-ENDIF()
-
 # Tests
+
+FILE(
+    GLOB_RECURSE
+    tests
+    "Tests/*.c"
+)
 
 IF(BUILD_TESTS)
     # Test ROMs and assets
@@ -80,12 +68,6 @@ IF(BUILD_TESTS)
     DOWNLOAD_IF_NOT_EXIST(
         "https://www.qmtpro.com/~nes/misc/nestest.log"
         ${CMAKE_CURRENT_BINARY_DIR}/nestest.log
-    )
-
-    FILE(
-        GLOB_RECURSE
-        tests
-        "Tests/*.c"
     )
 
     FOREACH(test_source ${tests})
@@ -109,4 +91,22 @@ IF(BUILD_TESTS)
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
     ENDFOREACH()
+ENDIF()
+
+# Automation
+
+IF(ClangFormat_FOUND)
+    ADD_CUSTOM_TARGET(
+        format-${target}
+        COMMAND ${ClangFormat_PROGRAM} -i ${public} ${private} ${tests}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+
+    SET_TARGET_PROPERTIES(
+        format-${target}
+        PROPERTIES 
+            FOLDER "Automation"
+    )
+
+    ADD_DEPENDENCIES(format format-${target})
 ENDIF()

@@ -50,4 +50,4 @@ script:
   - export CMAKE_MODULE_PATH=/usr/share/SFML/cmake/Modules/
   - cmake -DBUILD_TOOLS=ON -DBUILD_TESTS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
   - make -l all
-  - ctest --verbose
+  - ctest --output-on-failure

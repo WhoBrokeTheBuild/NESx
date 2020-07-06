@@ -22,7 +22,7 @@ MOS6502_PACK(union mos6502_flags
         uint8_t I : 1; // Interrupt
         uint8_t D : 1; // Decimal
         uint8_t B : 1; // Break
-        uint8_t   : 1; // Unused
+        uint8_t X : 1; // Unused
         uint8_t V : 1; // Overflow
         uint8_t N : 1; // Negative
     };
@@ -35,13 +35,6 @@ MOS6502_PACK(union mos6502_flags
 typedef union mos6502_flags mos6502_flags_t;
 
 static_assert(sizeof(mos6502_flags_t) == 1, "sizeof(mos6502_flags_t) != 1");
-
-typedef enum mos6502_rw
-{
-    MOS6502_RW_WRITE = 0,
-    MOS6502_RW_READ = 1,
-
-} mos6502_rw_t;
 
 typedef struct mos6502
 {
@@ -104,14 +97,14 @@ typedef struct mos6502
     mos6502_flags_t P;
 
     // Output Pins
-    mos6502_rw_t RW;
-    bool SYNC; // New Instruction Started
+    uint8_t RW;
+    uint8_t SYNC; // New Instruction Started
 
     // Input Pins
-    bool IRQ; // Maskable Interrupt Requested
-    bool NMI; // Non-Maskable Interrupt Requested
-    bool RDY; // "freeze execution at next read cycle"
-    bool RES; // Reset Requested
+    uint8_t IRQ; // Maskable Interrupt Requested
+    uint8_t NMI; // Non-Maskable Interrupt Requested
+    uint8_t RDY; // "freeze execution at next read cycle"
+    uint8_t RES; // Reset Requested
 
     bool BCDEnabled;
 

@@ -1,15 +1,15 @@
 
 FILE(
     GLOB_RECURSE
-    private
-    "Private/*.h"
-    "Private/*.c"
+    public
+    "Public/*.h"
 )
 
 FILE(
     GLOB_RECURSE
-    public
-    "Public/*.h"
+    private
+    "Private/*.h"
+    "Private/*.c"
 )
 
 SET(target libMOS6502)
@@ -63,33 +63,15 @@ INSTALL(
     DESTINATION include/NESx/MOS6502
 )
 
-# Automation
-
-IF(ClangFormat_FOUND)
-    ADD_CUSTOM_TARGET(
-        format-${target}
-        COMMAND ${ClangFormat_PROGRAM} -i ${public} ${private}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-
-    SET_TARGET_PROPERTIES(
-        format-${target}
-        PROPERTIES 
-            FOLDER "Automation"
-    )
-
-    ADD_DEPENDENCIES(format format-${target})
-ENDIF()
-
 # Tests
 
-IF(BUILD_TESTS)
-    FILE(
-        GLOB_RECURSE
-        tests
-        "Tests/*.c"
-    )
+FILE(
+    GLOB_RECURSE
+    tests
+    "Tests/*.c"
+)
 
+IF(BUILD_TESTS)
     FOREACH(test_source ${tests})
         GET_FILENAME_COMPONENT(test_target ${test_source} NAME_WE)
         SET(test_target "${target}_${test_target}")
@@ -111,4 +93,22 @@ IF(BUILD_TESTS)
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Tests"
         )
     ENDFOREACH()
+ENDIF()
+
+# Automation
+
+IF(ClangFormat_FOUND)
+    ADD_CUSTOM_TARGET(
+        format-${target}
+        COMMAND ${ClangFormat_PROGRAM} -i ${public} ${private} ${tests}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+
+    SET_TARGET_PROPERTIES(
+        format-${target}
+        PROPERTIES 
+            FOLDER "Automation"
+    )
+
+    ADD_DEPENDENCIES(format format-${target})
 ENDIF()

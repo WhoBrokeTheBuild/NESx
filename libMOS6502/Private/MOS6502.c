@@ -3,6 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
+Heavily influenced by
+https://github.com/floooh/chips/blob/master/chips/m6502.h
+*/
+
 void MOS6502_Init(mos6502_t * cpu)
 {
     cpu->AB = 0x0000;
@@ -17,91 +22,48 @@ void MOS6502_Init(mos6502_t * cpu)
     cpu->X = 0x00;
     cpu->Y = 0x00;
     cpu->S = 0xFD;
+    cpu->P.raw = 0x34;
 
-    cpu->P.N = false;
-    cpu->P.V = false;
-    cpu->P.B = true;
-    cpu->P.D = false;
-    cpu->P.I = true;
-    cpu->P.Z = true;
-    cpu->P.C = false;
-
-    cpu->RW = MOS6502_RW_READ;
-    cpu->SYNC = true;
-    cpu->IRQ = false;
-    cpu->NMI = false;
-    cpu->RDY = false;
-    cpu->RES = true;
+    cpu->RW = 1;
+    cpu->SYNC = 1;
+    cpu->IRQ = 0;
+    cpu->NMI = 0;
+    cpu->RDY = 0;
+    cpu->RES = 1;
 
     cpu->BCDEnabled = true;
 }
-
-/*
-Heavily influenced by
-https://github.com/floooh/chips/blob/master/chips/m6502.h
-*/
+#define _CYCLE(OP, CYC) ((OP) << 3) | (CYC)
 
 #define _FETCH()                                                               \
     cpu->AB = cpu->PC;                                                         \
     cpu->SYNC = true
 
+#define _SET_WRITE() cpu->RW = 0
+
 #define _STALL() cpu->AB = cpu->PC
 
-#define _SET_NZ(V)                                                             \
-    cpu->P.N = ((V) >> 7);                                                     \
-    cpu->P.Z = ((V) == 0)
-
-#define _SHIFT_LEFT(V)                                                         \
-    cpu->P.C = ((V)&0x80);                                                     \
-    (V) <<= 1;                                                                 \
-    _SET_NZ((V))
-
-#define _PUSH(V)                                                               \
-    cpu->ABH = 0x01;                                                           \
-    cpu->ABL = cpu->S--;                                                       \
-    cpu->DB = (V);                                                             \
-    cpu->RW = MOS6502_RW_WRITE
-
-#define _PULL()                                                                \
-    cpu->ABH = 0x01;                                                           \
-    cpu->ABL = cpu->S++;
-
-#define _OR()                                                                  \
-    cpu->A |= cpu->DB;                                                         \
-    _SET_NZ(cpu->A)
-
-#define _EOR()                                                                 \
-    cpu->A ^= cpu->DB;                                                         \
-    _SET_NZ(cpu->A)
-
 // Skip the next cycle if a page boundary is not crossed
-
-#define _PAGE_BOUND_CHECK_SKIP(V) cpu->IR += (~(cpu->ABL + (V)) >> 9) & 1
+#define _PAGE_BOUND_CHECK_SKIP(V)                                              \
+    cpu->IR += (~(cpu->ADH - ((cpu->AD + (V)) >> 8))) & 1
 
 // immediate
 
-#define _IMM() cpu->AB = cpu->PC++;
+#define _IMM() cpu->AB = cpu->PC++
 
 // zeropage
 
 #define _ZPG_0() cpu->AB = cpu->PC++
 
-#define _ZPG_1()                                                               \
-    cpu->ADH = 0x00;                                                           \
-    cpu->ADL = cpu->DB;                                                        \
-    cpu->AB = cpu->AD
+#define _ZPG_1() cpu->AB = cpu->DB
 
 // zeropage,X
 
-#define _ZPG_2_X()                                                             \
-    cpu->ADL += cpu->X;                                                        \
-    cpu->AB = cpu->AD
+#define _ZPG_2_X() cpu->ABL += cpu->X
 
 // zeropage,Y
 
-#define _ZPG_2_Y()                                                             \
-    cpu->ADL += cpu->Y;                                                        \
-    cpu->AB = cpu->AD
+#define _ZPG_2_Y() cpu->ABL += cpu->Y
 
 // absolute
 
@@ -135,16 +97,11 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
 
 #define _IND_0() cpu->AB = cpu->PC++
 
-#define _IND_1()                                                               \
-    cpu->ADH = 0x00;                                                           \
-    cpu->ADL = cpu->DB;                                                        \
-    cpu->AB = cpu->AD
+#define _IND_1() cpu->AB = cpu->DB
 
-// (zeropage,X)
+// (indirect,X)
 
-#define _IND_2_X()                                                             \
-    cpu->ADL += cpu->X;                                                        \
-    cpu->AB = cpu->AD
+#define _IND_2_X() cpu->ABL += cpu->X
 
 #define _IND_3_X()                                                             \
     ++cpu->ABL;                                                                \
@@ -154,7 +111,7 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
     cpu->ADH = cpu->DB;                                                        \
     cpu->AB = cpu->AD
 
-// (zeropage),Y
+// (indirect),Y
 
 #define _IND_2_Y()                                                             \
     ++cpu->ABL;                                                                \
@@ -191,6 +148,87 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
 
 #define _BRANCH_3() cpu->PC = cpu->AD
 
+// Instructions
+
+#define _SET_NZ(VALUE)                                                         \
+    cpu->P.N = ((VALUE) >> 7) & 0x01;                                          \
+    cpu->P.Z = ((VALUE) == 0)
+
+#define _ASL(VALUE)                                                            \
+    cpu->P.C = (((VALUE)&0x80) >> 7);                                          \
+    (VALUE) <<= 1;                                                             \
+    _SET_NZ((VALUE))
+
+#define _LSR(VALUE)                                                            \
+    cpu->P.C = ((VALUE)&0x01);                                                 \
+    (VALUE) >>= 1;                                                             \
+    _SET_NZ((VALUE))
+
+#define _ROL(VALUE)                                                            \
+    {                                                                          \
+        uint16_t result = ((VALUE) << 1) | cpu->P.C;                           \
+        cpu->P.C = ((result & 0x0100) >> 8);                                   \
+        (VALUE) = (result & 0xFF);                                             \
+        _SET_NZ((VALUE));                                                      \
+    }
+
+#define _ROR(VALUE)                                                            \
+    {                                                                          \
+        uint16_t result = ((cpu->P.C << 8) | (VALUE)) >> 1;                    \
+        cpu->P.C = ((VALUE)&0x01);                                             \
+        (VALUE) = (result & 0xFF);                                             \
+        _SET_NZ((VALUE));                                                      \
+    }
+
+#define _PUSH(VALUE)                                                           \
+    cpu->DB = (VALUE);                                                         \
+    cpu->ABH = 0x01;                                                           \
+    cpu->ABL = cpu->S--;                                                       \
+    _SET_WRITE()
+
+#define _PULL()                                                                \
+    cpu->ABH = 0x01;                                                           \
+    cpu->ABL = cpu->S++;
+
+#define _ORA()                                                                 \
+    cpu->A |= cpu->DB;                                                         \
+    _SET_NZ(cpu->A)
+
+#define _EOR()                                                                 \
+    cpu->A ^= cpu->DB;                                                         \
+    _SET_NZ(cpu->A)
+
+#define _CMP(REG, VALUE)                                                       \
+    {                                                                          \
+        uint16_t result = (REG) - (VALUE);                                     \
+        cpu->P.C = !((result & 0xFF00) > 0);                                   \
+        _SET_NZ(result & 0x00FF);                                              \
+    }
+
+#define _ADC(VALUE)                                                            \
+    if (cpu->BCDEnabled && cpu->P.D) {                                         \
+        /* TODO: Support BCD */                                                \
+    }                                                                          \
+    else {                                                                     \
+        uint16_t result = cpu->A + (VALUE) + cpu->P.C;                         \
+        cpu->P.V = ((~(cpu->A ^ (VALUE)) & (cpu->A ^ result) & 0x80) > 0);     \
+        cpu->P.C = ((result & 0xFF00) > 0);                                    \
+        cpu->A = (result & 0xFF);                                              \
+        _SET_NZ(cpu->A);                                                       \
+    }
+
+#define _SBC(VALUE)                                                            \
+    if (cpu->BCDEnabled && cpu->P.D) {                                         \
+        /* TODO: Support BCD */                                                \
+    }                                                                          \
+    else {                                                                     \
+        uint16_t result = cpu->A - (VALUE) - (cpu->P.C ? 0 : 1);               \
+        cpu->P.V = (((cpu->A ^ (VALUE)) & (cpu->A ^ result) & 0x80) > 0);      \
+        cpu->P.C = !(result & 0xFF00);                                         \
+        cpu->A = (result & 0xFF);                                              \
+        _SET_NZ(cpu->A);                                                       \
+    }
+
 void MOS6502_Tick(mos6502_t * cpu)
 {
     if (cpu->RW && !cpu->RDY) {
@@ -199,16 +237,16 @@ void MOS6502_Tick(mos6502_t * cpu)
 
     if (cpu->SYNC) {
         cpu->IR = cpu->DB << 3;
-        cpu->SYNC = false;
+        cpu->SYNC = 0;
 
         ++cpu->PC;
     }
 
-    cpu->RW = MOS6502_RW_READ;
+    cpu->RW = 1;
     switch (cpu->IR++) {
     // BRK
-    case (0x00 << 3) | 0: cpu->AB = cpu->PC; break;
-    case (0x00 << 3) | 1:
+    case _CYCLE(0x00, 0): cpu->AB = cpu->PC; break;
+    case _CYCLE(0x00, 1):
         if (/* flags crap? */ false) {
             ++cpu->PC;
         }
@@ -216,26 +254,27 @@ void MOS6502_Tick(mos6502_t * cpu)
         cpu->ADL = cpu->S--;
         cpu->DB = cpu->PCH;
         if (/* more flags crap? */ false) {
-            cpu->RW = MOS6502_RW_WRITE;
+            _SET_WRITE();
         }
         break;
-    case (0x00 << 3) | 2:
+    case _CYCLE(0x00, 2):
         cpu->ADH = 0x01;
         cpu->ADL = cpu->S--;
         cpu->DB = cpu->PCL;
         if (/* more flags crap? */ false) {
-            cpu->RW = MOS6502_RW_WRITE;
+            _SET_WRITE();
         }
         break;
-    case (0x00 << 3) | 3:
+    case _CYCLE(0x00, 3):
         cpu->ADH = 0x01;
         cpu->ADL = cpu->P.raw; // TODO: Set unused flag
+        cpu->ADL |= (1 << 5) | (1 << 4);
         cpu->DB = cpu->PCL;
         if (/* even more flags crap?? */ false) {
             cpu->AD = 0xFFFC;
         }
         else {
-            cpu->RW = MOS6502_RW_WRITE;
+            _SET_WRITE();
             if (/* seriously ?*/ false) {
                 cpu->AD = 0xFFFA;
             }
@@ -244,682 +283,1557 @@ void MOS6502_Tick(mos6502_t * cpu)
             }
         }
         break;
-    case (0x00 << 3) | 4:
+    case _CYCLE(0x00, 4):
         cpu->AB = cpu->AD++;
-        cpu->P.I = true;
-        cpu->P.B = true;
+        cpu->P.B = 1;
+        cpu->P.I = 1;
         // brk_flags
         break;
-    case (0x00 << 3) | 5:
+    case _CYCLE(0x00, 5):
         cpu->AB = cpu->AD;
         cpu->ADL = cpu->DB;
         break;
-    case (0x00 << 3) | 6:
+    case _CYCLE(0x00, 6):
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
         _FETCH();
         break;
 
-    // ORA (zeropage,X)
-    case (0x01 << 3) | 0: _IND_0(); break;
-    case (0x01 << 3) | 1: _IND_1(); break;
-    case (0x01 << 3) | 2: _IND_2_X(); break;
-    case (0x01 << 3) | 3: _IND_3_X(); break;
-    case (0x01 << 3) | 4: _IND_4_X(); break;
-    case (0x01 << 3) | 5:
-        _OR();
+    // ORA (indirect,X)
+    case _CYCLE(0x01, 0): _IND_0(); break;
+    case _CYCLE(0x01, 1): _IND_1(); break;
+    case _CYCLE(0x01, 2): _IND_2_X(); break;
+    case _CYCLE(0x01, 3): _IND_3_X(); break;
+    case _CYCLE(0x01, 4): _IND_4_X(); break;
+    case _CYCLE(0x01, 5):
+        _ORA();
         _FETCH();
         break;
 
     // ORA zeropage
-    case (0x05 << 3) | 0: _ZPG_0(); break;
-    case (0x05 << 3) | 1: _ZPG_1(); break;
-    case (0x05 << 3) | 2:
-        _OR();
+    case _CYCLE(0x05, 0): _ZPG_0(); break;
+    case _CYCLE(0x05, 1): _ZPG_1(); break;
+    case _CYCLE(0x05, 2):
+        _ORA();
         _FETCH();
         break;
 
     // ASL zeropage
-    case (0x06 << 3) | 0: _ZPG_0(); break;
-    case (0x06 << 3) | 1: _ZPG_1(); break;
-    case (0x06 << 3) | 2:
-        cpu->ADH = 0x00;
-        cpu->ADL = cpu->DB;
-        cpu->RW = MOS6502_RW_WRITE;
+    case _CYCLE(0x06, 0): _ZPG_0(); break;
+    case _CYCLE(0x06, 1): _ZPG_1(); break;
+    case _CYCLE(0x06, 2): _SET_WRITE(); break;
+    case _CYCLE(0x06, 3):
+        _ASL(cpu->DB);
+        _SET_WRITE();
         break;
-    case (0x06 << 3) | 3:
-        _SHIFT_LEFT(cpu->DB);
-        cpu->RW = MOS6502_RW_WRITE;
-        break;
-    case (0x06 << 3) | 4: _FETCH(); break;
+    case _CYCLE(0x06, 4): _FETCH(); break;
 
     // PHP
-    case (0x08 << 3) | 0: _STALL(); break;
-    case (0x08 << 3) | 1:
-        // TODO: Set unused flag
-        _PUSH(cpu->P.raw);
-        break;
-    case (0x08 << 3) | 2: _FETCH(); break;
+    case _CYCLE(0x08, 0): _STALL(); break;
+    case _CYCLE(0x08, 1): _PUSH(cpu->P.raw | 0b00110000); break;
+    case _CYCLE(0x08, 2): _FETCH(); break;
 
     // ORA immediate
-    case (0x09 << 3) | 0: _IMM(); break;
-    case (0x09 << 3) | 1:
-        _OR();
+    case _CYCLE(0x09, 0): _IMM(); break;
+    case _CYCLE(0x09, 1):
+        _ORA();
         _FETCH();
         break;
 
-    // ASL
-    case (0x0A << 3) | 0: _STALL(); break;
-    case (0x0A << 3) | 1:
-        _SHIFT_LEFT(cpu->A);
+    // ASL A
+    case _CYCLE(0x0A, 0): _STALL(); break;
+    case _CYCLE(0x0A, 1):
+        _ASL(cpu->A);
         _FETCH();
         break;
 
     // ORA absolute
-    case (0x0D << 3) | 0: _ABS_0(); break;
-    case (0x0D << 3) | 1: _ABS_1(); break;
-    case (0x0D << 3) | 2: _ABS_2(); break;
-    case (0x0D << 3) | 3:
-        _OR();
+    case _CYCLE(0x0D, 0): _ABS_0(); break;
+    case _CYCLE(0x0D, 1): _ABS_1(); break;
+    case _CYCLE(0x0D, 2): _ABS_2(); break;
+    case _CYCLE(0x0D, 3):
+        _ORA();
         _FETCH();
         break;
 
     // ASL absolute
-    case (0x0E << 3) | 0: _ABS_0(); break;
-    case (0x0E << 3) | 1: _ABS_1(); break;
-    case (0x0E << 3) | 2: _ABS_2(); break;
-    case (0x0E << 3) | 3:
+    case _CYCLE(0x0E, 0): _ABS_0(); break;
+    case _CYCLE(0x0E, 1): _ABS_1(); break;
+    case _CYCLE(0x0E, 2): _ABS_2(); break;
+    case _CYCLE(0x0E, 3):
         cpu->AD = cpu->DB;
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0x0E << 3) | 4:
-        _SHIFT_LEFT(cpu->DB);
-        cpu->RW = MOS6502_RW_WRITE;
+    case _CYCLE(0x0E, 4):
+        _ASL(cpu->DB);
+        _SET_WRITE();
         break;
-    case (0x0E << 3) | 5: _FETCH(); break;
+    case _CYCLE(0x0E, 5): _FETCH(); break;
 
     // BPL
-    case (0x10 << 3) | 0: _BRANCH_0(); break;
-    case (0x10 << 3) | 1: _BRANCH_1(!cpu->P.Z); break;
-    case (0x10 << 3) | 2: _BRANCH_2(); break;
-    case (0x10 << 3) | 3:
+    case _CYCLE(0x10, 0): _BRANCH_0(); break;
+    case _CYCLE(0x10, 1): _BRANCH_1(cpu->P.N); break;
+    case _CYCLE(0x10, 2): _BRANCH_2(); break;
+    case _CYCLE(0x10, 3):
         _BRANCH_3();
         _FETCH();
         break;
 
-    // ORA (zeropage),Y
-    case (0x11 << 3) | 0: _IND_0(); break;
-    case (0x11 << 3) | 1: _IND_1(); break;
-    case (0x11 << 3) | 2: _IND_2_Y(); break;
-    case (0x11 << 3) | 3:
+    // ORA (indirect),Y
+    case _CYCLE(0x11, 0): _IND_0(); break;
+    case _CYCLE(0x11, 1): _IND_1(); break;
+    case _CYCLE(0x11, 2): _IND_2_Y(); break;
+    case _CYCLE(0x11, 3):
         _IND_3_Y();
         _PAGE_BOUND_CHECK_SKIP(cpu->Y);
         break;
-    case (0x11 << 3) | 4: _IND_4_Y(); break;
-    case (0x11 << 3) | 5:
-        _OR();
+    case _CYCLE(0x11, 4): _IND_4_Y(); break;
+    case _CYCLE(0x11, 5):
+        _ORA();
         _FETCH();
         break;
 
     // ORA zeropage,X
-    case (0x15 << 3) | 0: _ZPG_0(); break;
-    case (0x15 << 3) | 1: _ZPG_1(); break;
-    case (0x15 << 3) | 2: _ZPG_2_X(); break;
-    case (0x15 << 3) | 4:
-        _OR();
+    case _CYCLE(0x15, 0): _ZPG_0(); break;
+    case _CYCLE(0x15, 1): _ZPG_1(); break;
+    case _CYCLE(0x15, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x15, 3):
+        _ORA();
         _FETCH();
         break;
 
+    // ASL zeropage,X
+    case _CYCLE(0x16, 0): _ZPG_0(); break;
+    case _CYCLE(0x16, 1): _ZPG_1(); break;
+    case _CYCLE(0x16, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x16, 3): _SET_WRITE(); break;
+    case _CYCLE(0x16, 4):
+        _ASL(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x16, 5): _FETCH(); break;
+
     // CLC
-    case (0x18 << 3) | 0: _STALL(); break;
-    case (0x18 << 3) | 1:
-        cpu->P.C = false;
+    case _CYCLE(0x18, 0): _STALL(); break;
+    case _CYCLE(0x18, 1):
+        cpu->P.C = 0;
         _FETCH();
         break;
 
     // ORA absolute,Y
-    case (0x19 << 3) | 0: _ABS_0(); break;
-    case (0x19 << 3) | 1: _ABS_1(); break;
-    case (0x19 << 3) | 2: _ABS_2_Y(); break;
-    case (0x19 << 3) | 3:
-        _ABS_3_Y();
+    case _CYCLE(0x19, 0): _ABS_0(); break;
+    case _CYCLE(0x19, 1): _ABS_1(); break;
+    case _CYCLE(0x19, 2):
+        _ABS_2_Y();
         _PAGE_BOUND_CHECK_SKIP(cpu->Y);
         break;
-    case (0x19 << 3) | 4:
-        _OR();
+    case _CYCLE(0x19, 3): _ABS_3_Y(); break;
+    case _CYCLE(0x19, 4):
+        _ORA();
         _FETCH();
         break;
 
     // ORA absolute,X
-    case (0x1D << 3) | 0: _ABS_0(); break;
-    case (0x1D << 3) | 1: _ABS_1(); break;
-    case (0x1D << 3) | 2:
+    case _CYCLE(0x1D, 0): _ABS_0(); break;
+    case _CYCLE(0x1D, 1): _ABS_1(); break;
+    case _CYCLE(0x1D, 2):
         _ABS_2_X();
         _PAGE_BOUND_CHECK_SKIP(cpu->X);
         break;
-    case (0x1D << 3) | 3: _ABS_3_X(); break;
-    case (0x1D << 3) | 4:
-        _OR();
+    case _CYCLE(0x1D, 3): _ABS_3_X(); break;
+    case _CYCLE(0x1D, 4):
+        _ORA();
         _FETCH();
         break;
 
-    // JSR
-    case (0x20 << 3) | 0: cpu->AB = cpu->PC++; break;
-    case (0x20 << 3) | 1:
-        cpu->ABH = 0x01;
-        cpu->ADL = cpu->DB;
-        cpu->ABL = cpu->S;
+    // ASL absolute,X
+    case _CYCLE(0x1E, 0): _ABS_0(); break;
+    case _CYCLE(0x1E, 1): _ABS_1(); break;
+    case _CYCLE(0x1E, 2): _ABS_2_X(); break;
+    case _CYCLE(0x1E, 3): _ABS_3_X(); break;
+    case _CYCLE(0x1E, 4): _SET_WRITE(); break;
+    case _CYCLE(0x1E, 5):
+        _ASL(cpu->DB);
+        _SET_WRITE();
         break;
-    case (0x20 << 3) | 2: _PUSH(cpu->PCH); break;
-    case (0x20 << 3) | 3: _PUSH(cpu->PCL); break;
-    case (0x20 << 3) | 4: cpu->AB = cpu->PC; break;
-    case (0x20 << 3) | 5:
+    case _CYCLE(0x1E, 6): _FETCH(); break;
+
+    // JSR
+    case _CYCLE(0x20, 0): _IMM(); break;
+    case _CYCLE(0x20, 1):
+        cpu->ABH = 0x01;
+        cpu->ABL = cpu->S;
+        cpu->ADL = cpu->DB;
+        break;
+    case _CYCLE(0x20, 2): _PUSH(cpu->PCH); break;
+    case _CYCLE(0x20, 3): _PUSH(cpu->PCL); break;
+    case _CYCLE(0x20, 4): cpu->AB = cpu->PC; break;
+    case _CYCLE(0x20, 5):
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
         _FETCH();
         break;
 
+    // AND (indirect,X)
+    case _CYCLE(0x21, 0): _IND_0(); break;
+    case _CYCLE(0x21, 1): _IND_1(); break;
+    case _CYCLE(0x21, 2): _IND_2_X(); break;
+    case _CYCLE(0x21, 3): _IND_3_X(); break;
+    case _CYCLE(0x21, 4): _IND_4_X(); break;
+    case _CYCLE(0x21, 5):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
     // BIT zeropage
-    case (0x24 << 3) | 0: _ZPG_0(); break;
-    case (0x24 << 3) | 1: _ZPG_1(); break;
-    case (0x24 << 3) | 2:
+    case _CYCLE(0x24, 0): _ZPG_0(); break;
+    case _CYCLE(0x24, 1): _ZPG_1(); break;
+    case _CYCLE(0x24, 2):
         cpu->P.N = (cpu->DB >> 7);
         cpu->P.V = (cpu->DB >> 6);
         cpu->P.Z = ((cpu->A & cpu->DB) == 0);
         _FETCH();
         break;
 
-    // PLP
-    case (0x28 << 3) | 0: _PULL(); break;
-    case (0x28 << 3) | 1:
-        // Page Boundary
-        cpu->ADL = cpu->S;
+    // AND zeropage
+    case _CYCLE(0x25, 0): _ZPG_0(); break;
+    case _CYCLE(0x25, 1): _ZPG_1(); break;
+    case _CYCLE(0x25, 2):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
         break;
-    case (0x28 << 3) | 2:
-        cpu->P.raw = cpu->DB; // TODO: Unset unused flag
-        cpu->P.B = true;
+
+    // ROL zeropage
+    case _CYCLE(0x26, 0): _ZPG_0(); break;
+    case _CYCLE(0x26, 1): _ZPG_1(); break;
+    case _CYCLE(0x26, 2): _SET_WRITE(); break;
+    case _CYCLE(0x26, 3):
+        _ROL(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x26, 4): _FETCH(); break;
+
+    // PLP
+    case _CYCLE(0x28, 0): _STALL(); break;
+    case _CYCLE(0x28, 1): _PULL(); break;
+    case _CYCLE(0x28, 2):
+        // Page Boundary
+        cpu->ABL = cpu->S;
+        break;
+    case _CYCLE(0x28, 3):
+        cpu->P.raw = cpu->DB;
+        cpu->P.raw &= 0b11101111; // Ignore B
+        cpu->P.raw |= 0b00100000; // Set "unused"
+        _FETCH();
+        break;
+
+    // AND immediate
+    case _CYCLE(0x29, 0): _IMM(); break;
+    case _CYCLE(0x29, 1):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // ROL A
+    case _CYCLE(0x2A, 0): _STALL(); break;
+    case _CYCLE(0x2A, 1):
+        _ROL(cpu->A);
         _FETCH();
         break;
 
     // BIT absolute
-    case (0x2C << 3) | 0: _ABS_0(); break;
-    case (0x2C << 3) | 1: _ABS_1(); break;
-    case (0x2C << 3) | 2: _ABS_2(); break;
-    case (0x2C << 3) | 3:
+    case _CYCLE(0x2C, 0): _ABS_0(); break;
+    case _CYCLE(0x2C, 1): _ABS_1(); break;
+    case _CYCLE(0x2C, 2): _ABS_2(); break;
+    case _CYCLE(0x2C, 3):
         cpu->P.N = (cpu->DB >> 7);
         cpu->P.V = (cpu->DB >> 6);
         cpu->P.Z = ((cpu->A & cpu->DB) == 0);
         _FETCH();
         break;
 
+    // AND absolute
+    case _CYCLE(0x2D, 0): _ABS_0(); break;
+    case _CYCLE(0x2D, 1): _ABS_1(); break;
+    case _CYCLE(0x2D, 2): _ABS_2(); break;
+    case _CYCLE(0x2D, 3):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // ROL absolute
+    case _CYCLE(0x2E, 0): _ABS_0(); break;
+    case _CYCLE(0x2E, 1): _ABS_1(); break;
+    case _CYCLE(0x2E, 2): _ABS_2(); break;
+    case _CYCLE(0x2E, 3): _SET_WRITE(); break;
+    case _CYCLE(0x2E, 4):
+        _ROL(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x2E, 5): _FETCH(); break;
+
     // BMI
-    case (0x30 << 3) | 0: _BRANCH_0(); break;
-    case (0x30 << 3) | 1: _BRANCH_1(!cpu->P.N); break;
-    case (0x30 << 3) | 2: _BRANCH_2(); break;
-    case (0x30 << 3) | 3:
+    case _CYCLE(0x30, 0): _BRANCH_0(); break;
+    case _CYCLE(0x30, 1): _BRANCH_1(!cpu->P.N); break;
+    case _CYCLE(0x30, 2): _BRANCH_2(); break;
+    case _CYCLE(0x30, 3):
         _BRANCH_3();
         _FETCH();
         break;
 
+    // AND (indirect),Y
+    case _CYCLE(0x31, 0): _IND_0(); break;
+    case _CYCLE(0x31, 1): _IND_1(); break;
+    case _CYCLE(0x31, 2): _IND_2_Y(); break;
+    case _CYCLE(0x31, 3):
+        _IND_3_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0x31, 4): _IND_4_Y(); break;
+    case _CYCLE(0x31, 5):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // AND zeropage,X
+    case _CYCLE(0x35, 0): _ZPG_0(); break;
+    case _CYCLE(0x35, 1): _ZPG_1(); break;
+    case _CYCLE(0x35, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x35, 3):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // ROL zeropage,X
+    case _CYCLE(0x36, 0): _ZPG_0(); break;
+    case _CYCLE(0x36, 1): _ZPG_1(); break;
+    case _CYCLE(0x36, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x36, 3): _SET_WRITE(); break;
+    case _CYCLE(0x36, 4):
+        _ROL(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x36, 5): _FETCH(); break;
+
     // SEC
-    case (0x38 << 3) | 0: _STALL(); break;
-    case (0x38 << 3) | 1:
+    case _CYCLE(0x38, 0): _STALL(); break;
+    case _CYCLE(0x38, 1):
         cpu->P.C = true;
         _FETCH();
         break;
 
+    // AND absolute,Y
+    case _CYCLE(0x39, 0): _ABS_0(); break;
+    case _CYCLE(0x39, 1): _ABS_1(); break;
+    case _CYCLE(0x39, 2):
+        _ABS_2_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0x39, 3): _ABS_3_Y(); break;
+    case _CYCLE(0x39, 4):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // AND absolute,X
+    case _CYCLE(0x3D, 0): _ABS_0(); break;
+    case _CYCLE(0x3D, 1): _ABS_1(); break;
+    case _CYCLE(0x3D, 2):
+        _ABS_2_X();
+        _PAGE_BOUND_CHECK_SKIP(cpu->X);
+        break;
+    case _CYCLE(0x3D, 3): _ABS_3_X(); break;
+    case _CYCLE(0x3D, 4):
+        cpu->A &= cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // ROL absolute,X
+    case _CYCLE(0x3E, 0): _ABS_0(); break;
+    case _CYCLE(0x3E, 1): _ABS_1(); break;
+    case _CYCLE(0x3E, 2): _ABS_2_X(); break;
+    case _CYCLE(0x3E, 3): _ABS_3_X(); break;
+    case _CYCLE(0x3E, 4): _SET_WRITE(); break;
+    case _CYCLE(0x3E, 5):
+        _ROL(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x3E, 6): _FETCH(); break;
+
+    // RTI
+    case _CYCLE(0x40, 0): _STALL(); break;
+    case _CYCLE(0x40, 1): _PULL(); break;
+    case _CYCLE(0x40, 2): _PULL(); break;
+    case _CYCLE(0x40, 3):
+        _PULL();
+        cpu->P.raw = cpu->DB;
+        cpu->P.raw &= 0b11101111; // Ignore B
+        cpu->P.raw |= 0b00100000; // Set "unused"
+        break;
+    case _CYCLE(0x40, 4):
+        cpu->PCL = cpu->DB;
+        cpu->ABL = cpu->S;
+        break;
+    case _CYCLE(0x40, 5):
+        cpu->PCH = cpu->DB;
+        _FETCH();
+        break;
+
     // EOR (indirect,X)
-    case (0x41 << 3) | 0: _IND_0(); break;
-    case (0x41 << 3) | 1: _IND_1(); break;
-    case (0x41 << 3) | 2: _IND_2_X(); break;
-    case (0x41 << 3) | 3: _IND_3_X(); break;
-    case (0x41 << 3) | 4: _IND_4_X(); break;
-    case (0x41 << 3) | 5:
+    case _CYCLE(0x41, 0): _IND_0(); break;
+    case _CYCLE(0x41, 1): _IND_1(); break;
+    case _CYCLE(0x41, 2): _IND_2_X(); break;
+    case _CYCLE(0x41, 3): _IND_3_X(); break;
+    case _CYCLE(0x41, 4): _IND_4_X(); break;
+    case _CYCLE(0x41, 5):
         _EOR();
         _FETCH();
         break;
 
     // EOR zeropage
-    case (0x45 << 3) | 0: _ZPG_0(); break;
-    case (0x45 << 3) | 1: _ZPG_1(); break;
-    case (0x45 << 3) | 2:
+    case _CYCLE(0x45, 0): _ZPG_0(); break;
+    case _CYCLE(0x45, 1): _ZPG_1(); break;
+    case _CYCLE(0x45, 2):
         _EOR();
         _FETCH();
         break;
 
+    // LSR zeropage
+    case _CYCLE(0x46, 0): _ZPG_0(); break;
+    case _CYCLE(0x46, 1): _ZPG_1(); break;
+    case _CYCLE(0x46, 2): break;
+    case _CYCLE(0x46, 3):
+        _LSR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x46, 4): _FETCH(); break;
+
     // PHA
-    case (0x48 << 3) | 0: _STALL(); break;
-    case (0x48 << 3) | 1: _PUSH(cpu->A); break;
-    case (0x48 << 3) | 2: _FETCH(); break;
+    case _CYCLE(0x48, 0): _STALL(); break;
+    case _CYCLE(0x48, 1): _PUSH(cpu->A); break;
+    case _CYCLE(0x48, 2): _FETCH(); break;
 
     // EOR immediate
-    case (0x49 << 3) | 0: _IMM(); break;
-    case (0x49 << 3) | 1:
+    case _CYCLE(0x49, 0): _IMM(); break;
+    case _CYCLE(0x49, 1):
         _EOR();
+        _FETCH();
+        break;
+
+    // LSR A
+    case _CYCLE(0x4A, 0): _STALL(); break;
+    case _CYCLE(0x4A, 1):
+        _LSR(cpu->A);
         _FETCH();
         break;
 
     // JMP absolute
-    case (0x4C << 3) | 0: cpu->AB = cpu->PC++; break;
-    case (0x4C << 3) | 1:
+    case _CYCLE(0x4C, 0): cpu->AB = cpu->PC++; break;
+    case _CYCLE(0x4C, 1):
         cpu->AB = cpu->PC++;
         cpu->ADL = cpu->DB;
         break;
-    case (0x4C << 3) | 2:
+    case _CYCLE(0x4C, 2):
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
         _FETCH();
         break;
 
     // EOR absolute
-    case (0x4D << 3) | 0: _ABS_0(); break;
-    case (0x4D << 3) | 1: _ABS_1(); break;
-    case (0x4D << 3) | 2: _ABS_2(); break;
-    case (0x4D << 3) | 3:
+    case _CYCLE(0x4D, 0): _ABS_0(); break;
+    case _CYCLE(0x4D, 1): _ABS_1(); break;
+    case _CYCLE(0x4D, 2): _ABS_2(); break;
+    case _CYCLE(0x4D, 3):
         _EOR();
         _FETCH();
         break;
 
+    // LSR absolute
+    case _CYCLE(0x4E, 0): _ABS_0(); break;
+    case _CYCLE(0x4E, 1): _ABS_1(); break;
+    case _CYCLE(0x4E, 2): _ABS_2(); break;
+    case _CYCLE(0x4E, 3): _SET_WRITE(); break;
+    case _CYCLE(0x4E, 4):
+        _LSR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x4E, 5): _FETCH(); break;
+
     // BVC
-    case (0x50 << 3) | 0: _BRANCH_0(); break;
-    case (0x50 << 3) | 1: _BRANCH_1(cpu->P.V); break;
-    case (0x50 << 3) | 2: _BRANCH_2(); break;
-    case (0x50 << 3) | 3:
+    case _CYCLE(0x50, 0): _BRANCH_0(); break;
+    case _CYCLE(0x50, 1): _BRANCH_1(cpu->P.V); break;
+    case _CYCLE(0x50, 2): _BRANCH_2(); break;
+    case _CYCLE(0x50, 3):
         _BRANCH_3();
         _FETCH();
         break;
 
     // EOR (indirect),Y
-    case (0x51 << 3) | 0: _IND_0(); break;
-    case (0x51 << 3) | 1: _IND_1(); break;
-    case (0x51 << 3) | 2: _IND_2_Y(); break;
-    case (0x51 << 3) | 3: _IND_3_Y(); break;
-    case (0x51 << 3) | 4: _PAGE_BOUND_CHECK_SKIP(cpu->Y); break;
-    case (0x51 << 3) | 5: _IND_4_Y(); break;
-    case (0x51 << 3) | 6:
+    case _CYCLE(0x51, 0): _IND_0(); break;
+    case _CYCLE(0x51, 1): _IND_1(); break;
+    case _CYCLE(0x51, 2): _IND_2_Y(); break;
+    case _CYCLE(0x51, 3):
+        _IND_3_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0x51, 4): _IND_4_Y(); break;
+    case _CYCLE(0x51, 5):
         _EOR();
         _FETCH();
         break;
 
     // EOR zeropage,X
-    case (0x55 << 3) | 0: _ZPG_0(); break;
-    case (0x55 << 3) | 1: _ZPG_1(); break;
-    case (0x55 << 3) | 2: _ZPG_2_X(); break;
-    case (0x55 << 3) | 3:
+    case _CYCLE(0x55, 0): _ZPG_0(); break;
+    case _CYCLE(0x55, 1): _ZPG_1(); break;
+    case _CYCLE(0x55, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x55, 3):
         _EOR();
         _FETCH();
         break;
 
+    // LSR zeropage,X
+    case _CYCLE(0x56, 0): _ZPG_0(); break;
+    case _CYCLE(0x56, 1): _ZPG_1(); break;
+    case _CYCLE(0x56, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x56, 3): _SET_WRITE(); break;
+    case _CYCLE(0x56, 4):
+        _LSR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x56, 5): _FETCH(); break;
+
     // CLI
-    case (0x58 << 3) | 0: _STALL(); break;
-    case (0x58 << 3) | 1:
+    case _CYCLE(0x58, 0): _STALL(); break;
+    case _CYCLE(0x58, 1):
         cpu->P.I = false;
         _FETCH();
         break;
 
     // EOR absolute,Y
-    case (0x59 << 3) | 0: _ABS_0(); break;
-    case (0x59 << 3) | 1: _ABS_1(); break;
-    case (0x59 << 3) | 2:
+    case _CYCLE(0x59, 0): _ABS_0(); break;
+    case _CYCLE(0x59, 1): _ABS_1(); break;
+    case _CYCLE(0x59, 2):
         _ABS_2_Y();
         _PAGE_BOUND_CHECK_SKIP(cpu->Y);
         break;
-    case (0x59 << 3) | 3: _ABS_3_Y(); break;
-    case (0x59 << 3) | 4:
+    case _CYCLE(0x59, 3): _ABS_3_Y(); break;
+    case _CYCLE(0x59, 4):
         _EOR();
         _FETCH();
         break;
 
     // EOR absolute,X
-    case (0x5D << 3) | 0: _ABS_0(); break;
-    case (0x5D << 3) | 1: _ABS_1(); break;
-    case (0x5D << 3) | 2:
+    case _CYCLE(0x5D, 0): _ABS_0(); break;
+    case _CYCLE(0x5D, 1): _ABS_1(); break;
+    case _CYCLE(0x5D, 2):
         _ABS_2_X();
         _PAGE_BOUND_CHECK_SKIP(cpu->X);
         break;
-    case (0x5D << 3) | 3: _ABS_3_X(); break;
-    case (0x5D << 3) | 4:
+    case _CYCLE(0x5D, 3): _ABS_3_X(); break;
+    case _CYCLE(0x5D, 4):
         _EOR();
         _FETCH();
         break;
 
+    // LSR absolute,X
+    case _CYCLE(0x5E, 0): _ABS_0(); break;
+    case _CYCLE(0x5E, 1): _ABS_1(); break;
+    case _CYCLE(0x5E, 2): _ABS_2_X(); break;
+    case _CYCLE(0x5E, 3): _ABS_3_X(); break;
+    case _CYCLE(0x5E, 4): _SET_WRITE(); break;
+    case _CYCLE(0x5E, 5):
+        _LSR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x5E, 6): _FETCH(); break;
+
     // RTS
-    case (0x60 << 3) | 0: _STALL(); break;
-    case (0x60 << 3) | 1: _PULL(); break;
-    case (0x60 << 3) | 2: _PULL(); break;
-    case (0x60 << 3) | 3:
+    case _CYCLE(0x60, 0): _STALL(); break;
+    case _CYCLE(0x60, 1): _PULL(); break;
+    case _CYCLE(0x60, 2): _PULL(); break;
+    case _CYCLE(0x60, 3):
         cpu->ABL = cpu->S;
         cpu->ADL = cpu->DB;
         break;
-    case (0x60 << 3) | 4:
+    case _CYCLE(0x60, 4):
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
         cpu->AB = cpu->PC++;
         break;
-    case (0x60 << 3) | 5: _FETCH(); break;
+    case _CYCLE(0x60, 5): _FETCH(); break;
+
+    // ADC (indirect,X)
+    case _CYCLE(0x61, 0): _IND_0(); break;
+    case _CYCLE(0x61, 1): _IND_1(); break;
+    case _CYCLE(0x61, 2): _IND_2_X(); break;
+    case _CYCLE(0x61, 3): _IND_3_X(); break;
+    case _CYCLE(0x61, 4): _IND_4_X(); break;
+    case _CYCLE(0x61, 5):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ADC zeropage
+    case _CYCLE(0x65, 0): _ZPG_0(); break;
+    case _CYCLE(0x65, 1): _ZPG_1(); break;
+    case _CYCLE(0x65, 2):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ROR zeropage
+    case _CYCLE(0x66, 0): _ZPG_0(); break;
+    case _CYCLE(0x66, 1): _ZPG_1(); break;
+    case _CYCLE(0x66, 2): _SET_WRITE(); break;
+    case _CYCLE(0x66, 3):
+        _ROR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x66, 4): _FETCH(); break;
 
     // PLA
-    case (0x68 << 3) | 0: _STALL(); break;
-    case (0x68 << 3) | 1: _PULL(); break;
-    case (0x68 << 3) | 2: break;
-    case (0x68 << 3) | 3:
+    case _CYCLE(0x68, 0): _STALL(); break;
+    case _CYCLE(0x68, 1): _PULL(); break;
+    case _CYCLE(0x68, 2): cpu->ABL = cpu->S; break;
+    case _CYCLE(0x68, 3):
         cpu->A = cpu->DB;
         _SET_NZ(cpu->A);
         _FETCH();
         break;
 
+    // ADC immediate
+    case _CYCLE(0x69, 0): _IMM(); break;
+    case _CYCLE(0x69, 1):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ROR A
+    case _CYCLE(0x6A, 0): _STALL(); break;
+    case _CYCLE(0x6A, 1):
+        _ROR(cpu->A);
+        _FETCH();
+        break;
+
     // JMP (absolute)
-    case (0x6C << 3) | 0: cpu->AB = cpu->PC++; break;
-    case (0x6C << 3) | 1:
+    case _CYCLE(0x6C, 0): cpu->AB = cpu->PC++; break;
+    case _CYCLE(0x6C, 1):
         cpu->AB = cpu->PC++;
         cpu->ADL = cpu->DB;
         break;
-    case (0x6C << 3) | 2:
+    case _CYCLE(0x6C, 2):
         cpu->ADH = cpu->DB;
         cpu->AB = cpu->AD;
         break;
-    case (0x6C << 3) | 3:
+    case _CYCLE(0x6C, 3):
         ++cpu->ADL;
         cpu->AB = cpu->AD;
         cpu->ADL = cpu->DB;
         break;
-    case (0x6C << 3) | 4:
+    case _CYCLE(0x6C, 4):
         cpu->ADH = cpu->DB;
         cpu->PC = cpu->AD;
         _FETCH();
         break;
 
+    // ADC absolute
+    case _CYCLE(0x6D, 0): _ABS_0(); break;
+    case _CYCLE(0x6D, 1): _ABS_1(); break;
+    case _CYCLE(0x6D, 2): _ABS_2(); break;
+    case _CYCLE(0x6D, 3):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ROR absolute
+    case _CYCLE(0x6E, 0): _ABS_0(); break;
+    case _CYCLE(0x6E, 1): _ABS_1(); break;
+    case _CYCLE(0x6E, 2): _ABS_2(); break;
+    case _CYCLE(0x6E, 3): _SET_WRITE(); break;
+    case _CYCLE(0x6E, 4):
+        _ROR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x6E, 5): _FETCH(); break;
+
     // BVS
-    case (0x70 << 3) | 0: _BRANCH_0(); break;
-    case (0x70 << 3) | 1: _BRANCH_1(!cpu->P.V); break;
-    case (0x70 << 3) | 2: _BRANCH_2(); break;
-    case (0x70 << 3) | 3:
+    case _CYCLE(0x70, 0): _BRANCH_0(); break;
+    case _CYCLE(0x70, 1): _BRANCH_1(!cpu->P.V); break;
+    case _CYCLE(0x70, 2): _BRANCH_2(); break;
+    case _CYCLE(0x70, 3):
         _BRANCH_3();
         _FETCH();
         break;
 
+    // ADC (indirect),Y
+    case _CYCLE(0x71, 0): _IND_0(); break;
+    case _CYCLE(0x71, 1): _IND_1(); break;
+    case _CYCLE(0x71, 2): _IND_2_Y(); break;
+    case _CYCLE(0x71, 3):
+        _IND_3_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0x71, 4): _IND_4_Y(); break;
+    case _CYCLE(0x71, 5):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ADC zeropage,X
+    case _CYCLE(0x75, 0): _ZPG_0(); break;
+    case _CYCLE(0x75, 1): _ZPG_1(); break;
+    case _CYCLE(0x75, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x75, 3):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ROR zeropage,X
+    case _CYCLE(0x76, 0): _ZPG_0(); break;
+    case _CYCLE(0x76, 1): _ZPG_1(); break;
+    case _CYCLE(0x76, 2): _ZPG_2_X(); break;
+    case _CYCLE(0x76, 3): _SET_WRITE(); break;
+    case _CYCLE(0x76, 4):
+        _ROR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x76, 5): _FETCH(); break;
+
     // SEI
-    case (0x78 << 3) | 0: _STALL(); break;
-    case (0x78 << 3) | 1:
+    case _CYCLE(0x78, 0): _STALL(); break;
+    case _CYCLE(0x78, 1):
         cpu->P.I = true;
         _FETCH();
         break;
 
-    // STA (zeropage,X)
-    case (0x81 << 3) | 0: _IND_0(); break;
-    case (0x81 << 3) | 1: _IND_1(); break;
-    case (0x81 << 3) | 2: _IND_2_X(); break;
-    case (0x81 << 3) | 3: _IND_3_X(); break;
-    case (0x81 << 3) | 4:
+    // ADC absolute,Y
+    case _CYCLE(0x79, 0): _ABS_0(); break;
+    case _CYCLE(0x79, 1): _ABS_1(); break;
+    case _CYCLE(0x79, 2):
+        _ABS_2_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0x79, 3): _ABS_3_Y(); break;
+    case _CYCLE(0x79, 4):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ADC absolute,X
+    case _CYCLE(0x7D, 0): _ABS_0(); break;
+    case _CYCLE(0x7D, 1): _ABS_1(); break;
+    case _CYCLE(0x7D, 2):
+        _ABS_2_X();
+        _PAGE_BOUND_CHECK_SKIP(cpu->X);
+        break;
+    case _CYCLE(0x7D, 3): _ABS_3_X(); break;
+    case _CYCLE(0x7D, 4):
+        _ADC(cpu->DB);
+        _FETCH();
+        break;
+
+    // ROR absolute,X
+    case _CYCLE(0x7E, 0): _ABS_0(); break;
+    case _CYCLE(0x7E, 1): _ABS_1(); break;
+    case _CYCLE(0x7E, 2): _ABS_2_X(); break;
+    case _CYCLE(0x7E, 3): _ABS_3_X(); break;
+    case _CYCLE(0x7E, 4): _SET_WRITE(); break;
+    case _CYCLE(0x7E, 5):
+        _ROR(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x7E, 6): _FETCH(); break;
+
+    // STA (indirect,X)
+    case _CYCLE(0x81, 0): _IND_0(); break;
+    case _CYCLE(0x81, 1): _IND_1(); break;
+    case _CYCLE(0x81, 2): _IND_2_X(); break;
+    case _CYCLE(0x81, 3): _IND_3_X(); break;
+    case _CYCLE(0x81, 4):
         _IND_4_X();
         cpu->DB = cpu->A;
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0x81 << 3) | 5: _FETCH(); break;
+    case _CYCLE(0x81, 5): _FETCH(); break;
+
+    // STY zeropage
+    case _CYCLE(0x84, 0): _ZPG_0(); break;
+    case _CYCLE(0x84, 1):
+        _ZPG_1();
+        cpu->DB = cpu->Y;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x84, 2): _FETCH(); break;
+
+    // STA zeropage
+    case _CYCLE(0x85, 0): _ZPG_0(); break;
+    case _CYCLE(0x85, 1):
+        _ZPG_1();
+        cpu->DB = cpu->A;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x85, 2): _FETCH(); break;
 
     // STX zeropage
-    case (0x86 << 3) | 0: _ZPG_0(); break;
-    case (0x86 << 3) | 1:
+    case _CYCLE(0x86, 0): _ZPG_0(); break;
+    case _CYCLE(0x86, 1):
         _ZPG_1();
         cpu->DB = cpu->X;
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0x86 << 3) | 2: _FETCH(); break;
+    case _CYCLE(0x86, 2): _FETCH(); break;
+
+    // TXA
+    case _CYCLE(0x8A, 0): _STALL(); break;
+    case _CYCLE(0x8A, 1):
+        cpu->A = cpu->X;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // STY absolute
+    case _CYCLE(0x8C, 0): _ABS_0(); break;
+    case _CYCLE(0x8C, 1): _ABS_1(); break;
+    case _CYCLE(0x8C, 2):
+        _ABS_2();
+        cpu->DB = cpu->Y;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x8C, 3): _FETCH(); break;
+
+    // STA absolute
+    case _CYCLE(0x8D, 0): _ABS_0(); break;
+    case _CYCLE(0x8D, 1): _ABS_1(); break;
+    case _CYCLE(0x8D, 2):
+        _ABS_2();
+        cpu->DB = cpu->A;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x8D, 3): _FETCH(); break;
+
+    // STX absolute
+    case _CYCLE(0x8E, 0): _ABS_0(); break;
+    case _CYCLE(0x8E, 1): _ABS_1(); break;
+    case _CYCLE(0x8E, 2):
+        _ABS_2();
+        cpu->DB = cpu->X;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x8E, 3): _FETCH(); break;
 
     // BCC
-    case (0x90 << 3) | 0: _BRANCH_0(); break;
-    case (0x90 << 3) | 1: _BRANCH_1(cpu->P.C); break;
-    case (0x90 << 3) | 2: _BRANCH_2(); break;
-    case (0x90 << 3) | 3:
+    case _CYCLE(0x90, 0): _BRANCH_0(); break;
+    case _CYCLE(0x90, 1): _BRANCH_1(cpu->P.C); break;
+    case _CYCLE(0x90, 2): _BRANCH_2(); break;
+    case _CYCLE(0x90, 3):
         _BRANCH_3();
         _FETCH();
         break;
 
-    // STA (zeropage),Y
-    case (0x91 << 3) | 0: _IND_0(); break;
-    case (0x91 << 3) | 1: _IND_1(); break;
-    case (0x91 << 3) | 2: _IND_2_Y(); break;
-    case (0x91 << 3) | 3: _IND_3_Y(); break;
-    case (0x91 << 3) | 4:
-        cpu->AB = cpu->AD + cpu->Y;
+    // STA (indirect),Y
+    case _CYCLE(0x91, 0): _IND_0(); break;
+    case _CYCLE(0x91, 1): _IND_1(); break;
+    case _CYCLE(0x91, 2): _IND_2_Y(); break;
+    case _CYCLE(0x91, 3): _IND_3_Y(); break;
+    case _CYCLE(0x91, 4):
+        _IND_4_Y();
         cpu->DB = cpu->A;
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0x91 << 3) | 5: _FETCH(); break;
+    case _CYCLE(0x91, 5): _FETCH(); break;
+
+    // STY zeropage,X
+    case _CYCLE(0x94, 0): _ZPG_0(); break;
+    case _CYCLE(0x94, 1): _ZPG_1(); break;
+    case _CYCLE(0x94, 2):
+        _ZPG_2_X();
+        cpu->DB = cpu->Y;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x94, 3): _FETCH(); break;
+
+    // STA zeropage,X
+    case _CYCLE(0x95, 0): _ZPG_0(); break;
+    case _CYCLE(0x95, 1): _ZPG_1(); break;
+    case _CYCLE(0x95, 2):
+        _ZPG_2_X();
+        cpu->DB = cpu->A;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x95, 3): _FETCH(); break;
+
+    // STX zeropage,Y
+    case _CYCLE(0x96, 0): _ZPG_0(); break;
+    case _CYCLE(0x96, 1): _ZPG_1(); break;
+    case _CYCLE(0x96, 2):
+        _ZPG_2_Y();
+        cpu->DB = cpu->X;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x96, 3): _FETCH(); break;
+
+    // TAX
+    case _CYCLE(0x98, 0): _STALL(); break;
+    case _CYCLE(0x98, 1):
+        cpu->A = cpu->Y;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // STA absolute,Y
+    case _CYCLE(0x99, 0): _ABS_0(); break;
+    case _CYCLE(0x99, 1): _ABS_1(); break;
+    case _CYCLE(0x99, 2): _ABS_2_Y(); break;
+    case _CYCLE(0x99, 3):
+        _ABS_3_Y();
+        cpu->DB = cpu->A;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x99, 4): _FETCH(); break;
+
+    // TXS
+    case _CYCLE(0x9A, 0): _STALL(); break;
+    case _CYCLE(0x9A, 1):
+        cpu->S = cpu->X;
+        _FETCH();
+        break;
+
+    // STA absolute,X
+    case _CYCLE(0x9D, 0): _ABS_0(); break;
+    case _CYCLE(0x9D, 1): _ABS_1(); break;
+    case _CYCLE(0x9D, 2): _ABS_2_X(); break;
+    case _CYCLE(0x9D, 3):
+        _ABS_3_X();
+        cpu->DB = cpu->A;
+        _SET_WRITE();
+        break;
+    case _CYCLE(0x9D, 4): _FETCH(); break;
 
     // LDY immediate
-    case (0xA0 << 3) | 0: _IMM(); break;
-    case (0xA0 << 3) | 1:
+    case _CYCLE(0xA0, 0): _IMM(); break;
+    case _CYCLE(0xA0, 1):
         cpu->Y = cpu->DB;
         _SET_NZ(cpu->Y);
         _FETCH();
         break;
 
+    // LDA (indirect,X)
+    case _CYCLE(0xA1, 0): _IND_0(); break;
+    case _CYCLE(0xA1, 1): _IND_1(); break;
+    case _CYCLE(0xA1, 2): _IND_2_X(); break;
+    case _CYCLE(0xA1, 3): _IND_3_X(); break;
+    case _CYCLE(0xA1, 4): _IND_4_X(); break;
+    case _CYCLE(0xA1, 5):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
     // LDX immediate
-    case (0xA2 << 3) | 0: _IMM(); break;
-    case (0xA2 << 3) | 1:
+    case _CYCLE(0xA2, 0): _IMM(); break;
+    case _CYCLE(0xA2, 1):
         cpu->X = cpu->DB;
         _SET_NZ(cpu->X);
         _FETCH();
         break;
 
     // LDY zeropage
-    case (0xA4 << 3) | 0: _ZPG_0(); break;
-    case (0xA4 << 3) | 1: _ZPG_1(); break;
-    case (0xA4 << 3) | 2:
+    case _CYCLE(0xA4, 0): _ZPG_0(); break;
+    case _CYCLE(0xA4, 1): _ZPG_1(); break;
+    case _CYCLE(0xA4, 2):
         cpu->Y = cpu->DB;
         _SET_NZ(cpu->Y);
         _FETCH();
         break;
 
+    // LDA zeropage
+    case _CYCLE(0xA5, 0): _ZPG_0(); break;
+    case _CYCLE(0xA5, 1): _ZPG_1(); break;
+    case _CYCLE(0xA5, 2):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
     // LDX zeropage
-    case (0xA6 << 3) | 0: _ZPG_0(); break;
-    case (0xA6 << 3) | 1: _ZPG_1(); break;
-    case (0xA6 << 3) | 2:
+    case _CYCLE(0xA6, 0): _ZPG_0(); break;
+    case _CYCLE(0xA6, 1): _ZPG_1(); break;
+    case _CYCLE(0xA6, 2):
         cpu->X = cpu->DB;
         _SET_NZ(cpu->X);
         _FETCH();
         break;
 
     // TAY
-    case (0xA8 << 3) | 0: _STALL(); break;
-    case (0xA8 << 3) | 1:
+    case _CYCLE(0xA8, 0): _STALL(); break;
+    case _CYCLE(0xA8, 1):
         cpu->Y = cpu->A;
         _SET_NZ(cpu->Y);
         _FETCH();
         break;
 
     // LDA immediate
-    case (0xA9 << 3) | 0: _IMM(); break;
-    case (0xA9 << 3) | 1:
+    case _CYCLE(0xA9, 0): _IMM(); break;
+    case _CYCLE(0xA9, 1):
         cpu->A = cpu->DB;
         _SET_NZ(cpu->A);
         _FETCH();
         break;
 
+    // TAX
+    case _CYCLE(0xAA, 0): _STALL(); break;
+    case _CYCLE(0xAA, 1):
+        cpu->X = cpu->A;
+        _SET_NZ(cpu->X);
+        _FETCH();
+        break;
+
     // LDY absolute
-    case (0xAC << 3) | 0: _ABS_0(); break;
-    case (0xAC << 3) | 1: _ABS_1(); break;
-    case (0xAC << 3) | 2: _ABS_2(); break;
-    case (0xAC << 3) | 3:
+    case _CYCLE(0xAC, 0): _ABS_0(); break;
+    case _CYCLE(0xAC, 1): _ABS_1(); break;
+    case _CYCLE(0xAC, 2): _ABS_2(); break;
+    case _CYCLE(0xAC, 3):
         cpu->Y = cpu->DB;
         _SET_NZ(cpu->Y);
         _FETCH();
         break;
 
+    // LDA absolute
+    case _CYCLE(0xAD, 0): _ABS_0(); break;
+    case _CYCLE(0xAD, 1): _ABS_1(); break;
+    case _CYCLE(0xAD, 2): _ABS_2(); break;
+    case _CYCLE(0xAD, 3):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
     // LDX absolute
-    case (0xAE << 3) | 0: _ABS_0(); break;
-    case (0xAE << 3) | 1: _ABS_1(); break;
-    case (0xAE << 3) | 2: _ABS_2(); break;
-    case (0xAE << 3) | 3:
+    case _CYCLE(0xAE, 0): _ABS_0(); break;
+    case _CYCLE(0xAE, 1): _ABS_1(); break;
+    case _CYCLE(0xAE, 2): _ABS_2(); break;
+    case _CYCLE(0xAE, 3):
         cpu->X = cpu->DB;
         _SET_NZ(cpu->X);
         _FETCH();
         break;
 
     // BCS
-    case (0xB0 << 3) | 0: _BRANCH_0(); break;
-    case (0xB0 << 3) | 1: _BRANCH_1(!cpu->P.C); break;
-    case (0xB0 << 3) | 2: _BRANCH_2(); break;
-    case (0xB0 << 3) | 3:
+    case _CYCLE(0xB0, 0): _BRANCH_0(); break;
+    case _CYCLE(0xB0, 1): _BRANCH_1(!cpu->P.C); break;
+    case _CYCLE(0xB0, 2): _BRANCH_2(); break;
+    case _CYCLE(0xB0, 3):
         _BRANCH_3();
+        _FETCH();
+        break;
+
+    // LDA (indirect),Y
+    case _CYCLE(0xB1, 0): _IND_0(); break;
+    case _CYCLE(0xB1, 1): _IND_1(); break;
+    case _CYCLE(0xB1, 2): _IND_2_Y(); break;
+    case _CYCLE(0xB1, 3):
+        _IND_3_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0xB1, 4): _IND_4_Y(); break;
+    case _CYCLE(0xB1, 5):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
         _FETCH();
         break;
 
     // LDY zeropage,X
-    case (0xB4 << 3) | 0: _ZPG_0(); break;
-    case (0xB4 << 3) | 1: _ZPG_1(); break;
-    case (0xB4 << 3) | 2: _ZPG_2_X(); break;
-    case (0xB4 << 3) | 3:
+    case _CYCLE(0xB4, 0): _ZPG_0(); break;
+    case _CYCLE(0xB4, 1): _ZPG_1(); break;
+    case _CYCLE(0xB4, 2): _ZPG_2_X(); break;
+    case _CYCLE(0xB4, 3):
         cpu->Y = cpu->DB;
         _SET_NZ(cpu->Y);
+        _FETCH();
         break;
 
-    // STA zeropage
-    case (0x85 << 3) | 0: _ZPG_0(); break;
-    case (0x85 << 3) | 1:
-        _ZPG_1();
-        cpu->DB = cpu->A;
-        cpu->RW = MOS6502_RW_WRITE;
+    // LDA zeropage,X
+    case _CYCLE(0xB5, 0): _ZPG_0(); break;
+    case _CYCLE(0xB5, 1): _ZPG_1(); break;
+    case _CYCLE(0xB5, 2): _ZPG_2_X(); break;
+    case _CYCLE(0xB5, 3):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
         break;
-    case (0x85 << 3) | 2: _FETCH(); break;
 
     // LDX zeropage,Y
-    case (0xB6 << 3) | 0: _ZPG_0(); break;
-    case (0xB6 << 3) | 1: _ZPG_1(); break;
-    case (0xB6 << 3) | 2: _ZPG_2_Y(); break;
-    case (0xB6 << 3) | 3:
+    case _CYCLE(0xB6, 0): _ZPG_0(); break;
+    case _CYCLE(0xB6, 1): _ZPG_1(); break;
+    case _CYCLE(0xB6, 2): _ZPG_2_Y(); break;
+    case _CYCLE(0xB6, 3):
         cpu->X = cpu->DB;
         _SET_NZ(cpu->X);
+        _FETCH();
+        break;
+
+    // DEY
+    case _CYCLE(0x88, 0): _STALL(); break;
+    case _CYCLE(0x88, 1):
+        --cpu->Y;
+        _SET_NZ(cpu->Y);
+        _FETCH();
         break;
 
     // CLV
-    case (0xB8 << 3) | 0: _STALL(); break;
-    case (0xB8 << 3) | 1:
+    case _CYCLE(0xB8, 0): _STALL(); break;
+    case _CYCLE(0xB8, 1):
         cpu->P.V = false;
         _FETCH();
         break;
 
+    // LDA absolute,Y
+    case _CYCLE(0xB9, 0): _ABS_0(); break;
+    case _CYCLE(0xB9, 1): _ABS_1(); break;
+    case _CYCLE(0xB9, 2):
+        _ABS_2_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0xB9, 3): _ABS_3_Y(); break;
+    case _CYCLE(0xB9, 4):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
+    // TSX
+    case _CYCLE(0xBA, 0): _STALL(); break;
+    case _CYCLE(0xBA, 1):
+        cpu->X = cpu->S;
+        _SET_NZ(cpu->X);
+        _FETCH();
+        break;
+
     // LDY absolute,X
-    case (0xBC << 3 | 0): _ABS_0(); break;
-    case (0xBC << 3 | 1): _ABS_1(); break;
-    case (0xBC << 3 | 2): _ABS_2_X(); break;
-    case (0xBC << 3 | 3):
+    case _CYCLE(0xBC, 0): _ABS_0(); break;
+    case _CYCLE(0xBC, 1): _ABS_1(); break;
+    case _CYCLE(0xBC, 2):
+        _ABS_2_X();
+        _PAGE_BOUND_CHECK_SKIP(cpu->X);
+        break;
+    case _CYCLE(0xBC, 3): _ABS_3_X(); break;
+    case _CYCLE(0xBC, 4):
         cpu->Y = cpu->DB;
         _SET_NZ(cpu->Y);
         _FETCH();
         break;
 
+    // LDA absolute,X
+    case _CYCLE(0xBD, 0): _ABS_0(); break;
+    case _CYCLE(0xBD, 1): _ABS_1(); break;
+    case _CYCLE(0xBD, 2):
+        _ABS_2_X();
+        _PAGE_BOUND_CHECK_SKIP(cpu->X);
+        break;
+    case _CYCLE(0xBD, 3): _ABS_3_X(); break;
+    case _CYCLE(0xBD, 4):
+        cpu->A = cpu->DB;
+        _SET_NZ(cpu->A);
+        _FETCH();
+        break;
+
     // LDX absolute,Y
-    case (0xBE << 3 | 0): _ABS_0(); break;
-    case (0xBE << 3 | 1): _ABS_1(); break;
-    case (0xBE << 3 | 2): _ABS_2_Y(); break;
-    case (0xBE << 3 | 3):
+    case _CYCLE(0xBE, 0): _ABS_0(); break;
+    case _CYCLE(0xBE, 1): _ABS_1(); break;
+    case _CYCLE(0xBE, 2): _ABS_2_Y(); _PAGE_BOUND_CHECK_SKIP(cpu->Y); break;
+    case _CYCLE(0xBE, 3): _ABS_3_Y(); break;
+    case _CYCLE(0xBE, 4):
         cpu->X = cpu->DB;
         _SET_NZ(cpu->X);
         _FETCH();
         break;
 
-    // BNE
-    case (0xD0 << 3) | 0: _BRANCH_0(); break;
-    case (0xD0 << 3) | 1: _BRANCH_1(cpu->P.Z); break;
-    case (0xD0 << 3) | 2: _BRANCH_2(); break;
-    case (0xD0 << 3) | 3:
-        _BRANCH_3();
+    // CPY immediate
+    case _CYCLE(0xC0, 0): _IMM(); break;
+    case _CYCLE(0xC0, 1):
+        _CMP(cpu->Y, cpu->DB);
         _FETCH();
         break;
 
-    // CLD
-    case (0xD8 << 3) | 0: _STALL(); break;
-    case (0xD8 << 3) | 1:
-        cpu->P.D = false;
+    // CMP (indirect,X)
+    case _CYCLE(0xC1, 0): _IND_0(); break;
+    case _CYCLE(0xC1, 1): _IND_1(); break;
+    case _CYCLE(0xC1, 2): _IND_2_X(); break;
+    case _CYCLE(0xC1, 3): _IND_3_X(); break;
+    case _CYCLE(0xC1, 4): _IND_4_X(); break;
+    case _CYCLE(0xC1, 5):
+        _CMP(cpu->A, cpu->DB);
         _FETCH();
         break;
 
-    // INC zeropage
-    case (0xE6 << 3) | 0: _ZPG_0(); break;
-    case (0xE6 << 3) | 1: _ZPG_1(); break;
-    case (0xE6 << 3) | 2: cpu->RW = MOS6502_RW_WRITE; break;
-    case (0xE6 << 3) | 3:
-        ++cpu->DB;
+    // CPY zeropage
+    case _CYCLE(0xC4, 0): _ZPG_0(); break;
+    case _CYCLE(0xC4, 1): _ZPG_1(); break;
+    case _CYCLE(0xC4, 2):
+        _CMP(cpu->Y, cpu->DB);
+        _FETCH();
+        break;
+
+    // CMP zeropage
+    case _CYCLE(0xC5, 0): _ZPG_0(); break;
+    case _CYCLE(0xC5, 1): _ZPG_1(); break;
+    case _CYCLE(0xC5, 2):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
+
+    // DEC zeropage
+    case _CYCLE(0xC6, 0): _ZPG_0(); break;
+    case _CYCLE(0xC6, 1): _ZPG_1(); break;
+    case _CYCLE(0xC6, 2): _SET_WRITE(); break;
+    case _CYCLE(0xC6, 3):
+        --cpu->DB;
         _SET_NZ(cpu->DB);
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0xE6 << 3) | 4: _FETCH(); break;
+    case _CYCLE(0xC6, 4): _FETCH(); break;
+
+    // CMP immediate
+    case _CYCLE(0xC9, 0): _IMM(); break;
+    case _CYCLE(0xC9, 1):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
 
     // INY
-    case (0xC8 << 3) | 0: _STALL(); break;
-    case (0xC8 << 3) | 1:
+    case _CYCLE(0xC8, 0): _STALL(); break;
+    case _CYCLE(0xC8, 1):
         ++cpu->Y;
         _SET_NZ(cpu->Y);
         _FETCH();
         break;
 
+    // DEX
+    case _CYCLE(0xCA, 0): _STALL(); break;
+    case _CYCLE(0xCA, 1):
+        --cpu->X;
+        _SET_NZ(cpu->X);
+        _FETCH();
+        break;
+
+    // CPY absolute
+    case _CYCLE(0xCC, 0): _ABS_0(); break;
+    case _CYCLE(0xCC, 1): _ABS_1(); break;
+    case _CYCLE(0xCC, 2): _ABS_2(); break;
+    case _CYCLE(0xCC, 3):
+        _CMP(cpu->Y, cpu->DB);
+        _FETCH();
+        break;
+
+    // CMP absolute
+    case _CYCLE(0xCD, 0): _ABS_0(); break;
+    case _CYCLE(0xCD, 1): _ABS_1(); break;
+    case _CYCLE(0xCD, 2): _ABS_2(); break;
+    case _CYCLE(0xCD, 3):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
+
+    // DEC absolute
+    case _CYCLE(0xCE, 0): _ABS_0(); break;
+    case _CYCLE(0xCE, 1): _ABS_1(); break;
+    case _CYCLE(0xCE, 2): _ABS_2(); break;
+    case _CYCLE(0xCE, 3): _SET_WRITE(); break;
+    case _CYCLE(0xCE, 4):
+        --cpu->DB;
+        _SET_NZ(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0xCE, 5): _FETCH(); break;
+
+    // BNE
+    case _CYCLE(0xD0, 0): _BRANCH_0(); break;
+    case _CYCLE(0xD0, 1): _BRANCH_1(cpu->P.Z); break;
+    case _CYCLE(0xD0, 2): _BRANCH_2(); break;
+    case _CYCLE(0xD0, 3):
+        _BRANCH_3();
+        _FETCH();
+        break;
+
+    // CMP (indirect),Y
+    case _CYCLE(0xD1, 0): _IND_0(); break;
+    case _CYCLE(0xD1, 1): _IND_1(); break;
+    case _CYCLE(0xD1, 2): _IND_2_Y(); break;
+    case _CYCLE(0xD1, 3):
+        _IND_3_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0xD1, 4): _IND_4_Y(); break;
+    case _CYCLE(0xD1, 5):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
+
+    // CMP zeropage,X
+    case _CYCLE(0xD5, 0): _ZPG_0(); break;
+    case _CYCLE(0xD5, 1): _ZPG_1(); break;
+    case _CYCLE(0xD5, 2): _ZPG_2_X(); break;
+    case _CYCLE(0xD5, 3):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
+
+    // DEC zeropage,X
+    case _CYCLE(0xD6, 0): _ZPG_0(); break;
+    case _CYCLE(0xD6, 1): _ZPG_1(); break;
+    case _CYCLE(0xD6, 2): _ZPG_2_X(); break;
+    case _CYCLE(0xD6, 3): _SET_WRITE(); break;
+    case _CYCLE(0xD6, 4):
+        --cpu->DB;
+        _SET_NZ(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0xD6, 5): _FETCH(); break;
+
+    // CLD
+    case _CYCLE(0xD8, 0): _STALL(); break;
+    case _CYCLE(0xD8, 1):
+        cpu->P.D = false;
+        _FETCH();
+        break;
+
+    // CMP absolute,Y
+    case _CYCLE(0xD9, 0): _ABS_0(); break;
+    case _CYCLE(0xD9, 1): _ABS_1(); break;
+    case _CYCLE(0xD9, 2):
+        _ABS_2_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0xD9, 3): _ABS_3_Y(); break;
+    case _CYCLE(0xD9, 4):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
+
+    // CMP absolute,X
+    case _CYCLE(0xDD, 0): _ABS_0(); break;
+    case _CYCLE(0xDD, 1): _ABS_1(); break;
+    case _CYCLE(0xDD, 2):
+        _ABS_2_X();
+        _PAGE_BOUND_CHECK_SKIP(cpu->X);
+        break;
+    case _CYCLE(0xDD, 3): _ABS_3_X(); break;
+    case _CYCLE(0xDD, 4):
+        _CMP(cpu->A, cpu->DB);
+        _FETCH();
+        break;
+
+    // DEC absolute,X
+    case _CYCLE(0xDE, 0): _ABS_0(); break;
+    case _CYCLE(0xDE, 1): _ABS_1(); break;
+    case _CYCLE(0xDE, 2): _ABS_2_X(); break;
+    case _CYCLE(0xDE, 3): _ABS_3_X(); break;
+    case _CYCLE(0xDE, 4): _SET_WRITE(); break;
+    case _CYCLE(0xDE, 5):
+        --cpu->DB;
+        _SET_NZ(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0xDE, 6): _FETCH(); break;
+
+    // CPX immediate
+    case _CYCLE(0xE0, 0): _IMM(); break;
+    case _CYCLE(0xE0, 1):
+        _CMP(cpu->X, cpu->DB);
+        _FETCH();
+        break;
+
+    // SBC (indirect,X)
+    case _CYCLE(0xE1, 0): _IND_0(); break;
+    case _CYCLE(0xE1, 1): _IND_1(); break;
+    case _CYCLE(0xE1, 2): _IND_2_X(); break;
+    case _CYCLE(0xE1, 3): _IND_3_X(); break;
+    case _CYCLE(0xE1, 4): _IND_4_X(); break;
+    case _CYCLE(0xE1, 5):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
+    // CPX zeropage
+    case _CYCLE(0xE4, 0): _ZPG_0(); break;
+    case _CYCLE(0xE4, 1): _ZPG_1(); break;
+    case _CYCLE(0xE4, 2):
+        _CMP(cpu->X, cpu->DB);
+        _FETCH();
+        break;
+
+    // SBC zeropage
+    case _CYCLE(0xE5, 0): _ZPG_0(); break;
+    case _CYCLE(0xE5, 1): _ZPG_1(); break;
+    case _CYCLE(0xE5, 2):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
+    // INC zeropage
+    case _CYCLE(0xE6, 0): _ZPG_0(); break;
+    case _CYCLE(0xE6, 1): _ZPG_1(); break;
+    case _CYCLE(0xE6, 2): _SET_WRITE(); break;
+    case _CYCLE(0xE6, 3):
+        ++cpu->DB;
+        _SET_NZ(cpu->DB);
+        _SET_WRITE();
+        break;
+    case _CYCLE(0xE6, 4): _FETCH(); break;
+
+    // SBC immediate
+    case _CYCLE(0xE9, 0): _IMM(); break;
+    case _CYCLE(0xE9, 1):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
     // INX
-    case (0xE8 << 3) | 0: _STALL(); break;
-    case (0xE8 << 3) | 1:
+    case _CYCLE(0xE8, 0): _STALL(); break;
+    case _CYCLE(0xE8, 1):
         ++cpu->X;
         _SET_NZ(cpu->X);
         _FETCH();
         break;
 
     // NOP
-    case (0xEA << 3) | 0: _STALL(); break;
-    case (0xEA << 3) | 1: _FETCH(); break;
+    case _CYCLE(0xEA, 0): _STALL(); break;
+    case _CYCLE(0xEA, 1): _FETCH(); break;
 
     // INC absolute
-    case (0xEE << 3) | 0: _ABS_0(); break;
-    case (0xEE << 3) | 1: _ABS_1(); break;
-    case (0xEE << 3) | 2: _ABS_2(); break;
-    case (0xEE << 3) | 3: cpu->RW = MOS6502_RW_WRITE; break;
-    case (0xEE << 3) | 4:
+    case _CYCLE(0xEE, 0): _ABS_0(); break;
+    case _CYCLE(0xEE, 1): _ABS_1(); break;
+    case _CYCLE(0xEE, 2): _ABS_2(); break;
+    case _CYCLE(0xEE, 3): _SET_WRITE(); break;
+    case _CYCLE(0xEE, 4):
         ++cpu->DB;
         _SET_NZ(cpu->DB);
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0xEE << 3) | 5: _FETCH(); break;
+    case _CYCLE(0xEE, 5): _FETCH(); break;
+
+    // CPX absolute
+    case _CYCLE(0xEC, 0): _ABS_0(); break;
+    case _CYCLE(0xEC, 1): _ABS_1(); break;
+    case _CYCLE(0xEC, 2): _ABS_2(); break;
+    case _CYCLE(0xEC, 3):
+        _CMP(cpu->X, cpu->DB);
+        _FETCH();
+        break;
+
+    // SBC absolute
+    case _CYCLE(0xED, 0): _ABS_0(); break;
+    case _CYCLE(0xED, 1): _ABS_1(); break;
+    case _CYCLE(0xED, 2): _ABS_2(); break;
+    case _CYCLE(0xED, 3):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
 
     // BEQ
-    case (0xF0 << 3) | 0: _BRANCH_0(); break;
-    case (0xF0 << 3) | 1: _BRANCH_1(!cpu->P.Z); break;
-    case (0xF0 << 3) | 2: _BRANCH_2(); break;
-    case (0xF0 << 3) | 3:
+    case _CYCLE(0xF0, 0): _BRANCH_0(); break;
+    case _CYCLE(0xF0, 1): _BRANCH_1(!cpu->P.Z); break;
+    case _CYCLE(0xF0, 2): _BRANCH_2(); break;
+    case _CYCLE(0xF0, 3):
         _BRANCH_3();
         _FETCH();
         break;
 
+    // SBC (indirect),Y
+    case _CYCLE(0xF1, 0): _IND_0(); break;
+    case _CYCLE(0xF1, 1): _IND_1(); break;
+    case _CYCLE(0xF1, 2): _IND_2_Y(); break;
+    case _CYCLE(0xF1, 3):
+        _IND_3_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0xF1, 4): _IND_4_Y(); break;
+    case _CYCLE(0xF1, 5):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
+    // SBC zeropage,X
+    case _CYCLE(0xF5, 0): _ZPG_0(); break;
+    case _CYCLE(0xF5, 1): _ZPG_1(); break;
+    case _CYCLE(0xF5, 2): _ZPG_2_X(); break;
+    case _CYCLE(0xF5, 3):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
     // INC zeropage,X
-    case (0xF6 << 3) | 0: _ZPG_0(); break;
-    case (0xF6 << 3) | 1: _ZPG_1(); break;
-    case (0xF6 << 3) | 2: _ZPG_2_X(); break;
-    case (0xF6 << 3) | 3: cpu->RW = MOS6502_RW_WRITE; break;
-    case (0xF6 << 3) | 4:
+    case _CYCLE(0xF6, 0): _ZPG_0(); break;
+    case _CYCLE(0xF6, 1): _ZPG_1(); break;
+    case _CYCLE(0xF6, 2): _ZPG_2_X(); break;
+    case _CYCLE(0xF6, 3): _SET_WRITE(); break;
+    case _CYCLE(0xF6, 4):
         ++cpu->DB;
         _SET_NZ(cpu->DB);
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0xF6 << 3) | 5: _FETCH(); break;
+    case _CYCLE(0xF6, 5): _FETCH(); break;
 
     // SED
-    case (0xF8 << 3) | 0: _STALL(); break;
-    case (0xF8 << 3) | 1:
+    case _CYCLE(0xF8, 0): _STALL(); break;
+    case _CYCLE(0xF8, 1):
         cpu->P.D = true;
         _FETCH();
         break;
 
+    // SBC absolute,Y
+    case _CYCLE(0xF9, 0): _ABS_0(); break;
+    case _CYCLE(0xF9, 1): _ABS_1(); break;
+    case _CYCLE(0xF9, 2):
+        _ABS_2_Y();
+        _PAGE_BOUND_CHECK_SKIP(cpu->Y);
+        break;
+    case _CYCLE(0xF9, 3): _ABS_3_Y(); break;
+    case _CYCLE(0xF9, 4):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
+    // SBC absolute,X
+    case _CYCLE(0xFD, 0): _ABS_0(); break;
+    case _CYCLE(0xFD, 1): _ABS_1(); break;
+    case _CYCLE(0xFD, 2):
+        _ABS_2_X();
+        _PAGE_BOUND_CHECK_SKIP(cpu->X);
+        break;
+    case _CYCLE(0xFD, 3): _ABS_3_X(); break;
+    case _CYCLE(0xFD, 4):
+        _SBC(cpu->DB);
+        _FETCH();
+        break;
+
     // INC absolute,X
-    case (0xFE << 3) | 0: _ABS_0(); break;
-    case (0xFE << 3) | 1: _ABS_1(); break;
-    case (0xFE << 3) | 2: _ABS_2_X(); break;
-    case (0xFE << 3) | 3: _ABS_3_X(); break;
-    case (0xFE << 3) | 4: cpu->RW = MOS6502_RW_WRITE; break;
-    case (0xFE << 3) | 5:
+    case _CYCLE(0xFE, 0): _ABS_0(); break;
+    case _CYCLE(0xFE, 1): _ABS_1(); break;
+    case _CYCLE(0xFE, 2): _ABS_2_X(); break;
+    case _CYCLE(0xFE, 3): _ABS_3_X(); break;
+    case _CYCLE(0xFE, 4): _SET_WRITE(); break;
+    case _CYCLE(0xFE, 5):
         ++cpu->DB;
         _SET_NZ(cpu->DB);
-        cpu->RW = MOS6502_RW_WRITE;
+        _SET_WRITE();
         break;
-    case (0xFE << 3) | 6: _FETCH(); break;
+    case _CYCLE(0xFE, 6): _FETCH(); break;
 
-    default: assert(false); break;
+    default:
+        fprintf(stderr,
+            "unsupported opcode/cycle %02X:%d\n",
+            (cpu->IR >> 3),
+            (cpu->IR & 0b111));
+        assert(false);
+        break;
     };
 }

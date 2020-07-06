@@ -10,6 +10,7 @@ BinPackArguments: false
 AlignConsecutiveMacros: true
 AlignOperands: true
 AlignTrailingComments: true
+#AlignConsecutiveBitFields: true
 
 BraceWrapping:
   AfterEnum: true

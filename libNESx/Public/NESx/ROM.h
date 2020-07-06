@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct nesx;
 typedef struct nesx nesx_t;
 
 typedef struct nesx_rom_header

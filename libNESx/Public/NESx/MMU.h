@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-struct nesx;
 typedef struct nesx nesx_t;
 
 uint8_t NESx_ReadByte(nesx_t * ctx, uint16_t address);

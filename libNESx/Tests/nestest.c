@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 #include <inttypes.h>
 
 #include <NESx/NESx.h>
@@ -37,22 +37,22 @@ bool compareLogEntry(log_entry_t * guess, log_entry_t * check)
     }
 
     if (guess->A != check->A) {
-        printf("A is %04X, should be %04X\n", guess->A, check->A);
+        printf("A is %02X, should be %02X\n", guess->A, check->A);
         return false;
     }
 
     if (guess->X != check->X) {
-        printf("X is %04X, should be %04X\n", guess->X, check->X);
+        printf("X is %02X, should be %02X\n", guess->X, check->X);
         return false;
     }
 
     if (guess->Y != check->Y) {
-        printf("Y is %04X, should be %04X\n", guess->Y, check->Y);
+        printf("Y is %02X, should be %02X\n", guess->Y, check->Y);
         return false;
     }
 
     if (guess->P.raw != check->P.raw) {
-        printf("P is %04X (%c%c-%c%c%c%c%c), should be %04X (%c%c-%c%c%c%c%c)\n", 
+        printf("P is %02X (%c%c-%c%c%c%c%c), should be %02X (%c%c-%c%c%c%c%c)\n", 
             guess->P.raw,
             (guess->P.N ? 'N' : 'n'),
             (guess->P.V ? 'V' : 'v'),
@@ -74,7 +74,7 @@ bool compareLogEntry(log_entry_t * guess, log_entry_t * check)
     }
 
     if (guess->S != check->S) {
-        printf("S is %04X, should be %04X\n", guess->S, check->S);
+        printf("S is %02X, should be %02X\n", guess->S, check->S);
         return false;
     }
 
@@ -115,7 +115,10 @@ int main(int argc, char ** argv)
     log_entry_t guess;
     guess.Cycle = 7;
 
-    bool success = true;
+    int status = 0;
+
+    const unsigned TOTAL_CYCLES = 14559; // Official Tests
+    // const unsigned TOTAL_CYCLES = 26554; // All Tests
 
     while (fgets(line, sizeof(line), fp)) {
         
@@ -129,20 +132,32 @@ int main(int argc, char ** argv)
         guess.S = nes.CPU.S;
 
         if (!compareLogEntry(&guess, &check)) {
-            success = false;
+            status = 1;
             break;
         }
 
+        printf("Progress %d/%d %3.2f%%\n", 
+            guess.Cycle, 
+            TOTAL_CYCLES, 
+            ((float)guess.Cycle / (float)TOTAL_CYCLES) * 100.0);
+
         printf("%s", line);
+        fflush(stdout);
+
+        if (guess.Cycle >= TOTAL_CYCLES) {
+            break;
+        }
 
         while (true) {
             if (nes.CPU.RW) {
                 nes.CPU.DB = NESx_ReadByte(&nes, nes.CPU.AB);
                 nes.CPU.RDY = true;
+                printf("  Read %02X from %04X\n", nes.CPU.DB, nes.CPU.AB);
             }
             else {
                 NESx_WriteByte(&nes, nes.CPU.AB, nes.CPU.DB);
                 nes.CPU.RDY = true;
+                printf("  Wrote %02X to %04X\n", nes.CPU.DB, nes.CPU.AB);
             }
 
             MOS6502_Tick(&nes.CPU);
@@ -158,5 +173,5 @@ int main(int argc, char ** argv)
 
     fclose(fp);
 
-    return 0;
+    return status;
 }
