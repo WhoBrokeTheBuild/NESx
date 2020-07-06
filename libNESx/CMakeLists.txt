@@ -38,6 +38,13 @@ TARGET_INCLUDE_DIRECTORIES(
         Private
 )
 
+TARGET_COMPILE_DEFINITIONS(
+    ${target}
+    PRIVATE
+        # Disable Visual Studio "not secure" warnings
+        $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
+)
+
 TARGET_LINK_LIBRARIES(
     ${target}
     PUBLIC

@@ -38,13 +38,6 @@ TARGET_INCLUDE_DIRECTORIES(
         Private
 )
 
-TARGET_COMPILE_DEFINITIONS(
-    ${target}
-    PUBLIC
-        # Disable Visual Studio "not secure" warnings
-        $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
-)
-
 TARGET_COMPILE_OPTIONS(
     ${target}
     PUBLIC
@@ -54,6 +47,13 @@ TARGET_COMPILE_OPTIONS(
         $<$<C_COMPILER_ID:MSVC>:/wd4068>
         # Enable mutlithreaded builds
         $<$<C_COMPILER_ID:MSVC>:/MP>
+)
+
+TARGET_COMPILE_DEFINITIONS(
+    ${target}
+    PRIVATE
+        # Disable Visual Studio "not secure" warnings
+        $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
 )
 
 # Install

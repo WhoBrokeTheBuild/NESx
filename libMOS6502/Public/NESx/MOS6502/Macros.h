@@ -1,7 +1,7 @@
 #ifndef NESX_MOS6502_MACROS_H
 #define NESX_MOS6502_MACROS_H
 
-#if defined(__MSC_VER)
+#if defined(_MSC_VER)
 #    define MOS6502_PACK(DECL) __pragma(pack(push, 1)) DECL __pragma(pack(pop))
 #    define MOS6502_INLINE     __forceinline
 #else
