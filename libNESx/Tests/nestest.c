@@ -148,18 +148,7 @@ int main(int argc, char ** argv)
         }
 
         while (true) {
-            if (nes.CPU.RW) {
-                nes.CPU.DB = NESx_ReadByte(&nes, nes.CPU.AB);
-                nes.CPU.RDY = true;
-                printf("  Read %02X from %04X\n", nes.CPU.DB, nes.CPU.AB);
-            }
-            else {
-                NESx_WriteByte(&nes, nes.CPU.AB, nes.CPU.DB);
-                nes.CPU.RDY = true;
-                printf("  Wrote %02X to %04X\n", nes.CPU.DB, nes.CPU.AB);
-            }
-
-            MOS6502_Tick(&nes.CPU);
+            NESx_Tick(&nes);
 
             ++guess.Cycle;
             if (nes.CPU.SYNC) {

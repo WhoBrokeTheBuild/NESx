@@ -17,9 +17,9 @@ bool NESx_Init(nesx_t * ctx)
     ctx->CPU.Y = 0;
     ctx->CPU.S = 0xFD;
 
-    memset(&ctx->ROMHeader, 0, sizeof(ctx->ROMHeader));
+    NESx_MMU_Init(ctx);
 
-    memset(ctx->InternalRAM, 0, sizeof(ctx->InternalRAM));
+    memset(&ctx->ROMHeader, 0, sizeof(ctx->ROMHeader));
 
     ctx->ROM = NULL;
     ctx->ROMSize = 0;
@@ -38,26 +38,11 @@ void NESx_Term(nesx_t * ctx)
 
 void NESx_Tick(nesx_t * ctx)
 {
-    if (ctx->CPU.RW) {
-        ctx->CPU.DB = NESx_ReadByte(ctx, ctx->CPU.AB);
-        ctx->CPU.RDY = true;
-        // printf("Read %02X from %04X\n", ctx->CPU.DB, ctx->CPU.AB);
-    }
-    else {
-        NESx_WriteByte(ctx, ctx->CPU.AB, ctx->CPU.DB);
-        ctx->CPU.RDY = true;
-        // printf("Wrote %02X to %04X\n", ctx->CPU.DB, ctx->CPU.AB);
-    }
-
-    // printf("IR:%02X:%d PC:%04X AB:%04X DB:%02X A:%02X X:%02X Y:%02X S:%02X P:%c%c%c%c%c%c\n",
-    //     (ctx->CPU.IR >> 3), (ctx->CPU.IR & 0b111),
-    //     ctx->CPU.PC, ctx->CPU.AB, ctx->CPU.DB, 
-    //     ctx->CPU.A, ctx->CPU.X, ctx->CPU.Y, ctx->CPU.S,
-    //     (ctx->CPU.FC ? 'C' : 'c'),
-    //     (ctx->CPU.FZ ? 'Z' : 'z'),
-    //     (ctx->CPU.FI ? 'I' : 'i'),
-    //     (ctx->CPU.FD ? 'D' : 'd'),
-    //     (ctx->CPU.FV ? 'V' : 'v'),
-    //     (ctx->CPU.FN ? 'N' : 'n'));
+    NESx_MMU_CPU_Tick(ctx);
     MOS6502_Tick(&ctx->CPU);
+
+    for (int i = 0; i < 3; ++i) {
+        NESx_MMU_PPU_Tick(ctx);
+        NESx_PPU_Tick(ctx);
+    }
 }

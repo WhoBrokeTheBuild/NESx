@@ -1,13 +1,26 @@
 #include <NESx/MMU.h>
 #include <NESx/NESx.h>
 
+#include <string.h>
+
 // http://wiki.nesdev.com/w/index.php/CPU_memory_map
 
-uint8_t NESx_ReadByte(nesx_t * ctx, uint16_t address)
+void NESx_MMU_Init(nesx_t * ctx)
 {
+    nesx_mmu_t * mmu = &ctx->MMU;
+
+    memset(mmu->InternalRAM, 0, sizeof(mmu->InternalRAM));
+}
+
+uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
+{
+    nesx_mmu_t * mmu = &ctx->MMU;
+
     switch (address >> 12) {
     case 0x0:
-    case 0x1: return ctx->InternalRAM[address % sizeof(ctx->InternalRAM)];
+    case 0x1: 
+        return mmu->InternalRAM[address % sizeof(mmu->InternalRAM)];
+        break;
     case 0x2:
     case 0x3:
         // PPU
@@ -25,18 +38,48 @@ uint8_t NESx_ReadByte(nesx_t * ctx, uint16_t address)
     case 0xC:
     case 0xD:
     case 0xE:
-    case 0xF: return ctx->ROM[(address - 0x8000) % ctx->ROMSize];
+    case 0xF: 
+        return ctx->ROM[(address - 0x8000) % ctx->ROMSize];
+        break;
     }
+
     return 0x00;
 }
 
-void NESx_WriteByte(nesx_t * ctx, uint16_t address, uint8_t data)
+uint8_t NESx_MMU_PPU_ReadByte(nesx_t * ctx, uint16_t address)
 {
-    // printf("Writing %02X to %04X\n", data, address);
+    nesx_ppu_t * ppu = &ctx->PPU;
+    
+    uint16_t index;
+
+    switch(address >> 12) {
+    case 0x0:
+        return ppu->PatternTable[0][address];
+    case 0x1:
+        return ppu->PatternTable[1][address];
+    case 0x2:
+    case 0x3:
+        if (address >= 0x3F00) {
+            address = (address - 0x3F00) % sizeof(ppu->PaletteRAM);
+            ppu->DB = ppu->PaletteRAM[address];
+        }
+        index   = (address - 0x2000) / sizeof(ppu->NameTable[0]);
+        address = (address - 0x2000) % sizeof(ppu->NameTable[0]);
+        return ppu->NameTable[index % 4][address];
+    };
+
+    return 0x00;
+}
+
+void NESx_MMU_CPU_WriteByte(nesx_t * ctx, uint16_t address, uint8_t data)
+{
+    nesx_mmu_t * mmu = &ctx->MMU;
 
     switch (address >> 12) {
     case 0x0:
-    case 0x1: ctx->InternalRAM[address % sizeof(ctx->InternalRAM)] = data;
+    case 0x1:
+        mmu->InternalRAM[address % sizeof(mmu->InternalRAM)] = data;
+        break;
     case 0x2:
     case 0x3:
         // PPU
@@ -58,4 +101,29 @@ void NESx_WriteByte(nesx_t * ctx, uint16_t address, uint8_t data)
         break;
         // return ctx->ROM[(address - 0x8000) % ctx->ROMSize];
     }
+}
+
+void NESx_MMU_PPU_WriteByte(nesx_t * ctx, uint16_t address, uint8_t data)
+{
+    // TODO:
+}
+
+void NESx_MMU_CPU_Tick(nesx_t * ctx)
+{
+    mos6502_t * cpu = &ctx->CPU;
+
+    if (cpu->RW) {
+        cpu->DB = NESx_MMU_CPU_ReadByte(ctx, cpu->AB);
+    }
+    else {
+        NESx_MMU_CPU_WriteByte(ctx, cpu->AB, cpu->DB);
+    }
+    cpu->RDY = true;
+}
+
+void NESx_MMU_PPU_Tick(nesx_t * ctx)
+{
+    nesx_ppu_t * ppu = &ctx->PPU;
+
+    ppu->DB = NESx_MMU_CPU_ReadByte(ctx, ppu->AB);
 }

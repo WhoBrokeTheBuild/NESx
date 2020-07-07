@@ -5,15 +5,20 @@
 #include <stddef.h>
 
 #include <NESx/MOS6502/MOS6502.h>
+
+#include <NESx/MMU.h>
+#include <NESx/PPU.h>
 #include <NESx/ROM.h>
 
 typedef struct nesx
 {
     mos6502_t CPU;
 
-    nesx_rom_header_t ROMHeader;
+    nesx_ppu_t PPU;
 
-    uint8_t InternalRAM[0x800];
+    nesx_mmu_t MMU;
+
+    nesx_rom_header_t ROMHeader;
 
     uint8_t * ROM;
     size_t ROMSize;
