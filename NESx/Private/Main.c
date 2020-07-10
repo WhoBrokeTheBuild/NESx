@@ -4,7 +4,11 @@
 #include <NESx/NESx.h>
 #include <cflags.h>
 
-#include "Debug.h"
+#if defined(NESX_HAVE_GTK3)
+
+#include "Debug/Debug.h"
+
+#endif
 
 int main(int argc, char ** argv)
 {
@@ -52,10 +56,22 @@ int main(int argc, char ** argv)
 
     NESx_PrintROMHeader(&nes);
 
+    nes.CPU.PC = 0xC000;
+    nes.CPU.AB = nes.CPU.PC;
+    MOS6502_SetStatusRegister(&nes.CPU, 0x24);
+
+#if defined(NESX_HAVE_GTK3)
+
     if (!DebugInit(&nes, flags->argc, flags->argv)) {
         status = 1;
         goto cleanup;
     }
+
+#else
+
+    // Normal Init
+
+#endif
 
 cleanup:
 

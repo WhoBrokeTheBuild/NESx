@@ -83,6 +83,8 @@ typedef struct mos6502
     uint8_t RDY; // "freeze execution at next read cycle"
     uint8_t RES; // Reset Requested
 
+    uint64_t Cycles;
+
     bool BCDEnabled;
 
 } mos6502_t;

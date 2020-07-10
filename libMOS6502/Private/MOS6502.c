@@ -1813,6 +1813,8 @@ void MOS6502_Tick(mos6502_t * cpu)
         _FETCH();
         break;
     };
+
+    ++cpu->Cycles;
 }
 
 void MOS6502_SetStatusRegister(mos6502_t * cpu, uint8_t p)
