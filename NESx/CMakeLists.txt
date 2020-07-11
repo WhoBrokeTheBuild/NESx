@@ -39,6 +39,7 @@ TARGET_LINK_LIBRARIES(
     PUBLIC
         libNESx
         cflags::cflags
+        SDL2::SDL2
 )
 
 IF(GTK3_FOUND)
@@ -52,6 +53,39 @@ IF(GTK3_FOUND)
         ${target}
         PUBLIC
             GTK3::GTK3
+    )
+
+    SET(RESOURCES_DIR   ${CMAKE_CURRENT_SOURCE_DIR}/Resources)
+    SET(RESOURCE_CONFIG ${RESOURCES_DIR}/debugger.gresource.xml)
+
+    SET(RESOURCE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/resource.h)
+    SET(RESOURCE_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/resource.c)
+
+    ADD_CUSTOM_COMMAND(
+        COMMAND ${GLIB_COMPILE_RESOURCES_PROGRAM} ${RESOURCE_CONFIG} --target ${RESOURCE_HEADER} --generate-header
+        OUTPUT ${RESOURCE_HEADER}
+        DEPENDS ${RESOURCE_CONFIG}
+        WORKING_DIRECTORY ${RESOURCES_DIR}
+    )
+
+    ADD_CUSTOM_COMMAND(
+        COMMAND ${GLIB_COMPILE_RESOURCES_PROGRAM} ${RESOURCE_CONFIG} --target ${RESOURCE_SOURCE} --generate-source
+        OUTPUT ${RESOURCE_SOURCE}
+        DEPENDS ${RESOURCE_CONFIG}
+        WORKING_DIRECTORY ${RESOURCES_DIR}
+    )
+
+    TARGET_SOURCES(
+        ${target}
+        PRIVATE
+            ${RESOURCE_HEADER}
+            ${RESOURCE_SOURCE}
+    )
+
+    TARGET_INCLUDE_DIRECTORIES(
+        ${target}
+        PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}
     )
 ENDIF()
 

@@ -20,6 +20,7 @@
 # PANGOCAIRO1_LIBRARY
 # CAIRO_INCLUDE_DIR
 # CAIRO_LIBRARY
+# GLIB_COMPILE_RESOURCES_PROGRAM
 #
 # and the following imported targets
 #
@@ -216,6 +217,17 @@ FIND_LIBRARY(
         lib
 )
 
+# glib-compile-resources
+
+FIND_PROGRAM(
+    GLIB_COMPILE_RESOURCES_PROGRAM
+    NAMES glib-compile-resources
+    PATHS
+        ${GTK3_ROOT_DIR}
+    PATH_SUFFIXES
+        bin
+)
+
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(
     GTK3
@@ -236,6 +248,7 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(
         PANGOCAIRO1_LIBRARY
         CAIRO_INCLUDE_DIR
         CAIRO_LIBRARY
+        GLIB_COMPILE_RESOURCES_PROGRAM
 )
 
 IF(GTK3_FOUND)
