@@ -58,4 +58,6 @@ bool NESx_LoadROM(nesx_t * ctx, const char * filename);
 
 void NESx_PrintROMHeader(nesx_t * ctx);
 
+const char * NESx_GetMapperName(nesx_t * ctx);
+
 #endif // NESX_ROM_H

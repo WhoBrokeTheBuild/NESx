@@ -22,6 +22,7 @@ typedef struct debug_ctx
     mos6502_t * cpu;
     nesx_ppu_t * ppu;
     nesx_mmu_t * mmu;
+    nesx_rom_header_t * hdr;
 
     // Status
 
@@ -81,6 +82,13 @@ typedef struct debug_ctx
     MemoryView * memCPU;
     MemoryView * memPPU;
     MemoryView * memCartridge;
+
+    // Cartridge Header
+
+    GtkLabel * lblPRGROMSize;
+    GtkLabel * lblCHRROMSize;
+    GtkLabel * lblMapperNumber;
+    GtkLabel * lblMirrorType;
 
 
 } debug_ctx_t;
@@ -212,6 +220,7 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
     ctx.cpu = &nes->CPU;
     ctx.ppu = &nes->PPU;
     ctx.mmu = &nes->MMU;
+    ctx.hdr = &nes->ROMHeader;
 
     ctx.app = gtk_application_new("com.stephenlw.nesx", G_APPLICATION_FLAGS_NONE);
 
@@ -241,7 +250,7 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
     }
 
     ctx.window = GTK_APPLICATION_WINDOW(gtk_builder_get_object(builder, "wnd_main"));
-    gtk_window_set_default_size(GTK_WINDOW(ctx.window), 640, 600);
+    gtk_window_set_default_size(GTK_WINDOW(ctx.window), 640, 800);
     g_signal_connect(G_OBJECT(ctx.window), "destroy", G_CALLBACK(_DebugDestroy), &ctx);
 
     ctx.lblCPUCycles = GTK_LABEL(gtk_builder_get_object(builder, "lbl_cpu_cycles"));
@@ -291,6 +300,23 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
 
     ctx.cmbMemoryRegion = GTK_COMBO_BOX_TEXT(gtk_builder_get_object(builder, "cmb_memory_region_select"));
     _DebugMemoryRegionCPU(&ctx);
+
+    char buffer[64];
+
+    ctx.lblPRGROMSize = GTK_LABEL(gtk_builder_get_object(builder, "lbl_prg_rom_size"));
+    snprintf(buffer, sizeof(buffer), "%d x 16kB", ctx.hdr->PRGROMSize);
+    gtk_label_set_text(ctx.lblPRGROMSize, buffer);
+
+    ctx.lblCHRROMSize = GTK_LABEL(gtk_builder_get_object(builder, "lbl_chr_rom_size"));
+    snprintf(buffer, sizeof(buffer), "%d x 8kB", ctx.hdr->CHRROMSize);
+    gtk_label_set_text(ctx.lblCHRROMSize, buffer);
+
+    ctx.lblMapperNumber = GTK_LABEL(gtk_builder_get_object(builder, "lbl_mapper_number"));
+    snprintf(buffer, sizeof(buffer), "%s (%d)", NESx_GetMapperName(ctx.nes), ctx.hdr->MapperNumber);
+    gtk_label_set_text(ctx.lblMapperNumber, buffer);
+
+    ctx.lblMirrorType = GTK_LABEL(gtk_builder_get_object(builder, "lbl_mirror_type"));
+    gtk_label_set_text(ctx.lblMirrorType, (ctx.hdr->MirrorType ? "V-Mirror" : "H-Mirror"));
 
     _DebugUpdate(&ctx);
 

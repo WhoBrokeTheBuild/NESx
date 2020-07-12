@@ -75,3 +75,16 @@ void NESx_PrintROMHeader(nesx_t * ctx)
         hdr->CHRROMSize,
         (hdr->MirrorType ? "V-Mirror" : "H-Mirror"));
 }
+
+const char * NESx_GetMapperName(nesx_t * ctx)
+{
+    switch (ctx->ROMHeader.MapperNumber) {
+    case 0:     return "NROM";
+    case 1:     return "MMC1";
+    case 2:     return "UxROM";
+    case 3:     return "CNROM";
+    case 4:     return "MMC3";
+    case 5:     return "MMC5";
+    default:    return "Unsup.";
+    }
+}

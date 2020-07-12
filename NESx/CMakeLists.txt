@@ -61,17 +61,24 @@ IF(GTK3_FOUND)
     SET(RESOURCE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/resource.h)
     SET(RESOURCE_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/resource.c)
 
+    FILE(
+        GLOB_RECURSE
+        resources
+        "Resources/*.glade"
+        "Resources/*.xml"
+    )
+
     ADD_CUSTOM_COMMAND(
         COMMAND ${GLIB_COMPILE_RESOURCES_PROGRAM} ${RESOURCE_CONFIG} --target ${RESOURCE_HEADER} --generate-header
         OUTPUT ${RESOURCE_HEADER}
-        DEPENDS ${RESOURCE_CONFIG}
+        DEPENDS ${resources}
         WORKING_DIRECTORY ${RESOURCES_DIR}
     )
 
     ADD_CUSTOM_COMMAND(
         COMMAND ${GLIB_COMPILE_RESOURCES_PROGRAM} ${RESOURCE_CONFIG} --target ${RESOURCE_SOURCE} --generate-source
         OUTPUT ${RESOURCE_SOURCE}
-        DEPENDS ${RESOURCE_CONFIG}
+        DEPENDS ${resources}
         WORKING_DIRECTORY ${RESOURCES_DIR}
     )
 
