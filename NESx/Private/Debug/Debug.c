@@ -9,6 +9,29 @@
 
 #define MARGIN 8
 
+typedef struct mem_region_select
+{
+    uint16_t address;
+    const char * name;
+
+} mem_region_select_t;
+
+mem_region_select_t CPU_MEMORY_SECTIONS[] = {
+    { 0x0000, "0000: Internal RAM" },
+    { 0x2000, "2000: PPU Registers" },
+    { 0x4000, "4000: APU and I/O Registers" },
+    { 0x4020, "4020: ROM" },
+    { 0, NULL }
+    // TODO: Generate list based on mapper
+};
+
+mem_region_select_t PPU_MEMORY_SECTIONS[] = {
+    { 0x1000, "1000: Pattern Tables" },
+    { 0x2000, "2000: Name Tables" },
+    { 0x3F00, "3F00: Palette RAM" },
+    { 0, NULL }
+};
+
 typedef struct debug_ctx
 {
     bool running;
@@ -75,13 +98,15 @@ typedef struct debug_ctx
     
     // Memory View
 
+    mem_region_select_t * memoryRegions;
+
     GtkNotebook * nbkMemoryView;
 
     GtkComboBoxText * cmbMemoryRegion;
 
-    MemoryView * memCPU;
-    MemoryView * memPPU;
-    MemoryView * memCartridge;
+    NESxMemoryView * memCPU;
+    NESxMemoryView * memPPU;
+    NESxMemoryView * memCartridge;
 
     // Cartridge Header
 
@@ -90,47 +115,28 @@ typedef struct debug_ctx
     GtkLabel * lblMapperNumber;
     GtkLabel * lblMirrorType;
 
-
 } debug_ctx_t;
 
-typedef struct mem_region_select
+void _DebugMemoryRegionChanged(GtkComboBox * cmb, debug_ctx_t * ctx)
 {
-    uint16_t address;
-    const char * name;
+    int index = gtk_combo_box_get_active(cmb);
+    int page = gtk_notebook_get_current_page(ctx->nbkMemoryView);
+    NESxMemoryView * mem = NESX_MEMORY_VIEW(gtk_notebook_get_nth_page(ctx->nbkMemoryView, page));
+    assert(mem);
 
-} mem_region_select_t;
-
-mem_region_select_t CPU_MEMORY_SECTIONS[] = {
-    { 0x0000, "0000: Internal RAM" },
-    { 0x2000, "2000: PPU Registers" },
-    { 0x4000, "4000: APU and I/O Registers" },
-    { 0x4020, "4020: ROM" },
-    // TODO: Generate list based on mapper
-};
-
-mem_region_select_t PPU_MEMORY_SECTIONS[] = {
-    { 0x1000, "1000: Pattern Tables" },
-    { 0x2000, "2000: Name Tables" },
-    { 0x3F00, "3F00: Palette RAM" },
-};
-
-void _DebugMemoryRegionCPU(debug_ctx_t * ctx)
-{
-    gtk_combo_box_text_remove_all(ctx->cmbMemoryRegion);
-
-    for (int i = 0; i < G_N_ELEMENTS(CPU_MEMORY_SECTIONS); ++i) {
-        gtk_combo_box_text_append_text(ctx->cmbMemoryRegion, CPU_MEMORY_SECTIONS[i].name);
-    }
-
-    gtk_combo_box_set_active(GTK_COMBO_BOX(ctx->cmbMemoryRegion), 0);
+    nesx_memory_view_scroll_to_address(mem, ctx->memoryRegions[index].address);
 }
 
-void _DebugMemoryRegionPPU(debug_ctx_t * ctx)
+void _DebugSetMemoryRegions(debug_ctx_t * ctx, mem_region_select_t * regions)
 {
+    ctx->memoryRegions = regions;
+
     gtk_combo_box_text_remove_all(ctx->cmbMemoryRegion);
 
-    for (int i = 0; i < G_N_ELEMENTS(PPU_MEMORY_SECTIONS); ++i) {
-        gtk_combo_box_text_append_text(ctx->cmbMemoryRegion, PPU_MEMORY_SECTIONS[i].name);
+    int i = 0;
+    while (regions[i].name) {
+        gtk_combo_box_text_append_text(ctx->cmbMemoryRegion, regions[i].name);
+        ++i;
     }
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(ctx->cmbMemoryRegion), 0);
@@ -285,21 +291,18 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
 
     ctx.nbkMemoryView = GTK_NOTEBOOK(gtk_builder_get_object(builder, "nbk_memory_view"));
 
-    ctx.memCPU = MEMORY_VIEW(memory_view_new());
-    memory_view_add_region(ctx.memCPU, 0x0000, ctx.nes->MMU.InternalRAM, sizeof(ctx.nes->MMU.InternalRAM));
-    memory_view_add_region(ctx.memCPU, 0x2000, ctx.nes->ROM, 0x08); // TODO: Change Data
-    memory_view_add_region(ctx.memCPU, 0x4000, ctx.nes->ROM, 0x18); // TODO: Change Data
-    memory_view_add_region(ctx.memCPU, 0x4020, ctx.nes->ROM, ctx.nes->ROMSize); // TODO: 
+    ctx.memCPU = NESX_MEMORY_VIEW(nesx_memory_view_new());
     gtk_notebook_append_page(ctx.nbkMemoryView, GTK_WIDGET(ctx.memCPU), GTK_WIDGET(gtk_label_new("CPU")));
 
-    ctx.memPPU = MEMORY_VIEW(memory_view_new());
+    ctx.memPPU = NESX_MEMORY_VIEW(nesx_memory_view_new());
     gtk_notebook_append_page(ctx.nbkMemoryView, GTK_WIDGET(ctx.memPPU), GTK_WIDGET(gtk_label_new("PPU")));
 
-    ctx.memCartridge = MEMORY_VIEW(memory_view_new());
+    ctx.memCartridge = NESX_MEMORY_VIEW(nesx_memory_view_new());
     gtk_notebook_append_page(ctx.nbkMemoryView, GTK_WIDGET(ctx.memCartridge), GTK_WIDGET(gtk_label_new("Cartridge")));
 
     ctx.cmbMemoryRegion = GTK_COMBO_BOX_TEXT(gtk_builder_get_object(builder, "cmb_memory_region_select"));
-    _DebugMemoryRegionCPU(&ctx);
+    g_signal_connect(G_OBJECT(ctx.cmbMemoryRegion), "changed", G_CALLBACK(_DebugMemoryRegionChanged), &ctx);
+    _DebugSetMemoryRegions(&ctx, CPU_MEMORY_SECTIONS);
 
     char buffer[64];
 
@@ -321,6 +324,11 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
     _DebugUpdate(&ctx);
 
     gtk_widget_show_all(GTK_WIDGET(ctx.window));
+
+    nesx_memory_view_add_region(ctx.memCPU, 0x0000, ctx.nes->MMU.InternalRAM, sizeof(ctx.nes->MMU.InternalRAM));
+    nesx_memory_view_add_region(ctx.memCPU, 0x2000, ctx.nes->ROM, 0x08); // TODO: Change Data
+    nesx_memory_view_add_region(ctx.memCPU, 0x4000, ctx.nes->ROM, 0x18); // TODO: Change Data
+    nesx_memory_view_add_region(ctx.memCPU, 0x4020, ctx.nes->ROM, ctx.nes->ROMSize); // TODO: 
 
     unsigned MAX_CYCLES_PER_FRAME = 100;
 
