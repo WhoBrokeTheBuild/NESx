@@ -6,6 +6,11 @@ LIST(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/CMake)
 INCLUDE(SourceFolders)
 INCLUDE(Version)
 
+# Enable testing if we are not a subdirectory
+IF(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    INCLUDE(CTest)
+ENDIF()
+
 ###
 ### Project
 ###
@@ -22,7 +27,6 @@ PROJECT(
 ###
 
 OPTION(BUILD_TOOLS      "Build Tools"                               OFF)
-OPTION(BUILD_TESTS      "Build Tests"                               OFF)
 OPTION(BUILD_THIRDPARTY "Build Missing Third-Party Dependencies"    ON)
 
 ###
@@ -32,7 +36,7 @@ OPTION(BUILD_THIRDPARTY "Build Missing Third-Party Dependencies"    ON)
 # Allow for custom organization of files in IDEs
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
 
-IF(BUILD_TESTS)
+IF(BUILD_TESTING)
     ENABLE_TESTING()
 ENDIF()
 

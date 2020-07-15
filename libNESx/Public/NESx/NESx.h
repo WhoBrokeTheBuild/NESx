@@ -18,10 +18,7 @@ typedef struct nesx
 
     nesx_mmu_t MMU;
 
-    nesx_rom_header_t ROMHeader;
-
-    uint8_t * ROM;
-    size_t ROMSize;
+    nesx_rom_t ROM;
 
 } nesx_t;
 

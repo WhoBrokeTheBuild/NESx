@@ -98,7 +98,7 @@ int main(int argc, char ** argv)
         return 1;
     }
 
-    if (!NESx_LoadROM(&nes, "nestest.nes")) {
+    if (!NESx_ROM_Load(&nes, "nestest.nes")) {
         return 1;
     }
 

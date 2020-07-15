@@ -112,6 +112,7 @@ typedef struct debug_ctx
 
     GtkLabel * lblPRGROMSize;
     GtkLabel * lblCHRROMSize;
+    GtkLabel * lblPRGRAMSize;
     GtkLabel * lblMapperNumber;
     GtkLabel * lblMirrorType;
 
@@ -226,7 +227,7 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
     ctx.cpu = &nes->CPU;
     ctx.ppu = &nes->PPU;
     ctx.mmu = &nes->MMU;
-    ctx.hdr = &nes->ROMHeader;
+    ctx.hdr = &nes->ROM.Header;
 
     ctx.app = gtk_application_new("com.stephenlw.nesx", G_APPLICATION_FLAGS_NONE);
 
@@ -307,12 +308,16 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
     char buffer[64];
 
     ctx.lblPRGROMSize = GTK_LABEL(gtk_builder_get_object(builder, "lbl_prg_rom_size"));
-    snprintf(buffer, sizeof(buffer), "%d x 16kB", ctx.hdr->PRGROMSize);
+    snprintf(buffer, sizeof(buffer), "%d x 16kB", ctx.hdr->PRGROMBanks);
     gtk_label_set_text(ctx.lblPRGROMSize, buffer);
 
     ctx.lblCHRROMSize = GTK_LABEL(gtk_builder_get_object(builder, "lbl_chr_rom_size"));
-    snprintf(buffer, sizeof(buffer), "%d x 8kB", ctx.hdr->CHRROMSize);
+    snprintf(buffer, sizeof(buffer), "%d x 8kB", ctx.hdr->CHRROMBanks);
     gtk_label_set_text(ctx.lblCHRROMSize, buffer);
+
+    ctx.lblPRGRAMSize = GTK_LABEL(gtk_builder_get_object(builder, "lbl_prg_ram_size"));
+    snprintf(buffer, sizeof(buffer), "%d x 8kB", ctx.hdr->PRGRAMBanks);
+    gtk_label_set_text(ctx.lblPRGRAMSize, buffer);
 
     ctx.lblMapperNumber = GTK_LABEL(gtk_builder_get_object(builder, "lbl_mapper_number"));
     snprintf(buffer, sizeof(buffer), "%s (%d)", NESx_GetMapperName(ctx.nes), ctx.hdr->MapperNumber);
@@ -325,10 +330,15 @@ bool DebugInit(nesx_t * nes, int argc, char ** argv)
 
     gtk_widget_show_all(GTK_WIDGET(ctx.window));
 
-    nesx_memory_view_add_region(ctx.memCPU, 0x0000, ctx.nes->MMU.InternalRAM, sizeof(ctx.nes->MMU.InternalRAM));
-    nesx_memory_view_add_region(ctx.memCPU, 0x2000, ctx.nes->ROM, 0x08); // TODO: Change Data
-    nesx_memory_view_add_region(ctx.memCPU, 0x4000, ctx.nes->ROM, 0x18); // TODO: Change Data
-    nesx_memory_view_add_region(ctx.memCPU, 0x4020, ctx.nes->ROM, ctx.nes->ROMSize); // TODO: 
+    switch (ctx.hdr->MapperNumber)
+    {
+    case 0: // NROM
+        nesx_memory_view_add_region(ctx.memCPU, 0x0000, 0x2000, ctx.nes->MMU.InternalRAM, sizeof(ctx.nes->MMU.InternalRAM));
+        nesx_memory_view_add_region(ctx.memCPU, 0x2000, 0x2008, ctx.nes->ROM.PRGROM, 0x08); // TODO: Change Data
+        nesx_memory_view_add_region(ctx.memCPU, 0x4000, 0x4018, ctx.nes->ROM.PRGROM, 0x18); // TODO: Change Data
+        nesx_memory_view_add_region(ctx.memCPU, 0x4020, 0xFFFF, ctx.nes->ROM.PRGROM, ctx.nes->ROM.PRGROMSize); // TODO: 
+        break;
+    }
 
     unsigned MAX_CYCLES_PER_FRAME = 100;
 

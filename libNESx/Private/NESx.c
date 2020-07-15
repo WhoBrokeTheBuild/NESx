@@ -19,21 +19,13 @@ bool NESx_Init(nesx_t * ctx)
 
     NESx_MMU_Init(ctx);
 
-    memset(&ctx->ROMHeader, 0, sizeof(ctx->ROMHeader));
-
-    ctx->ROM = NULL;
-    ctx->ROMSize = 0;
-
     return true;
 }
 
 void NESx_Term(nesx_t * ctx)
 {
-    free(ctx->ROM);
-    ctx->ROM = NULL;
-    ctx->ROMSize = 0;
-
-    // mos6502_Term(&ctx->CPU);
+    NESx_ROM_Term(ctx);
+    NESx_MMU_Term(ctx);
 }
 
 void NESx_Tick(nesx_t * ctx)

@@ -10,6 +10,16 @@ void NESx_MMU_Init(nesx_t * ctx)
     nesx_mmu_t * mmu = &ctx->MMU;
 
     memset(mmu->InternalRAM, 0, sizeof(mmu->InternalRAM));
+
+    mmu->Mapper = NULL;
+}
+
+void NESx_MMU_Term(nesx_t * ctx)
+{
+    nesx_mmu_t * mmu = &ctx->MMU;
+
+    free(mmu->Mapper);
+    mmu->Mapper = NULL;
 }
 
 uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
@@ -26,11 +36,18 @@ uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
         // PPU
         break;
     case 0x4:
+        if (address <= 0x4017) {
+            // APU, I/O
+        }
+        else {
+            // CPU Test Mode
+            // https://wiki.nesdev.com/w/index.php/CPU_Test_Mode
+            assert(false);
+            break;
+        }
     case 0x5:
     case 0x6:
     case 0x7:
-        // APU, I/O
-        break;
     case 0x8:
     case 0x9:
     case 0xA:
@@ -39,8 +56,7 @@ uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
     case 0xD:
     case 0xE:
     case 0xF: 
-        return ctx->ROM[(address - 0x8000) % ctx->ROMSize];
-        break;
+        return mmu->Mapper->PRGReadByte(ctx, address);
     }
 
     return 0x00;
@@ -49,23 +65,24 @@ uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
 uint8_t NESx_MMU_PPU_ReadByte(nesx_t * ctx, uint16_t address)
 {
     nesx_ppu_t * ppu = &ctx->PPU;
+    nesx_mmu_t * mmu = &ctx->MMU;
     
     uint16_t index;
 
     switch(address >> 12) {
     case 0x0:
-        return ppu->PatternTable[0][address];
     case 0x1:
-        return ppu->PatternTable[1][address];
+        return mmu->Mapper->CHRReadByte(ctx, address);
     case 0x2:
     case 0x3:
         if (address >= 0x3F00) {
-            address = (address - 0x3F00) % sizeof(ppu->PaletteRAM);
-            ppu->DB = ppu->PaletteRAM[address];
+            return ppu->PaletteRAM[(address - 0x3F00) % sizeof(ppu->PaletteRAM)];
         }
-        index   = (address - 0x2000) / sizeof(ppu->NameTable[0]);
-        address = (address - 0x2000) % sizeof(ppu->NameTable[0]);
-        return ppu->NameTable[index % 4][address];
+        index   = (address - 0x2000) / 0x400;
+        address = (address - 0x2000) % 0x400;
+        return ppu->NameTables[index][address];
+    default:
+        assert(false);
     };
 
     return 0x00;

@@ -38,7 +38,7 @@ struct _NESxMemoryView
 
 GtkWidget * nesx_memory_view_new();
 
-void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t baseAddress, uint8_t * data, size_t size);
+void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t startAddress, uint16_t endAddress, uint8_t * data, size_t size);
 
 void nesx_memory_view_scroll_to_address(NESxMemoryView * mem, uint16_t address);
 

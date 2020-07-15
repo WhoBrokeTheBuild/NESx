@@ -22,15 +22,22 @@ typedef struct nesx_ppu
     // Data Bus
     uint8_t DB;
 
-    // Horizontal Position
-    int HPos;
-
     // Vertical Position
-    int VPos;
+    int Scanline;
 
-    uint8_t PatternTable[2][0x1000];
+    // Horizontal Position
+    int Pixel;
 
-    uint8_t NameTable[4][0x400];
+    int Cycle;
+
+    // Video RAM
+    uint8_t VRAM[0x800];
+
+    // Will point to CHR ROM or whatever
+    uint8_t * PatternTables;
+
+    // Will point at VRAM by default
+    uint8_t * NameTables[4];
 
     uint8_t PaletteRAM[0x20];
 

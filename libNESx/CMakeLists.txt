@@ -59,7 +59,7 @@ FILE(
     "Tests/*.c"
 )
 
-IF(BUILD_TESTS)
+IF(BUILD_TESTING)
     # Test ROMs and assets
     DOWNLOAD_IF_NOT_EXIST(
         "http://nickmass.com/images/nestest.nes"

@@ -76,7 +76,7 @@ GtkWidget * nesx_memory_view_new()
     return GTK_WIDGET(mem);
 }
 
-void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t baseAddress, uint8_t * data, size_t size)
+void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t startAddress, uint16_t endAddress, uint8_t * data, size_t size)
 {
     // FIXME: Totally a hack
     const double FONT_HEIGHT = 18.0;
@@ -98,8 +98,10 @@ void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t baseAddress, uin
         return;
     }
 
-    (*next)->start = baseAddress;
-    (*next)->end = baseAddress + size;
+    unsigned regionSize = endAddress - startAddress;
+
+    (*next)->start = startAddress;
+    (*next)->end = endAddress;
     (*next)->next = NULL;
     (*next)->scroll = mem->scrollHeight;
 
@@ -111,12 +113,13 @@ void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t baseAddress, uin
     GtkTextIter iter;
 
     unsigned i;
-    for (i = 0; i < size; i += 0x10) {
-        snprintf(addressLine, sizeof(addressLine), "%04X\n", baseAddress + i);
+    for (i = 0; i < regionSize; i += 0x10) {
+        snprintf(addressLine, sizeof(addressLine), "%04X\n", startAddress + i);
 
-        unsigned remaining = MIN(0x10, (size - i));
+        unsigned remaining = MIN(0x10, (regionSize - i));
         for (unsigned b = 0; b < remaining; ++b) {
-            uint8_t byte = data[i + b];
+            // printf("%04X\n", (i + b) % size);
+            uint8_t byte = data[(i + b) % size];
 
             dataLine[(b * 3) + 0] = hex[(byte & 0xF0) >> 4];
             dataLine[(b * 3) + 1] = hex[(byte & 0x0F)];

@@ -71,7 +71,7 @@ FILE(
     "Tests/*.c"
 )
 
-IF(BUILD_TESTS)
+IF(BUILD_TESTING)
     FOREACH(test_source ${tests})
         GET_FILENAME_COMPONENT(test_target ${test_source} NAME_WE)
         SET(test_target "${target}_${test_target}")

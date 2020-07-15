@@ -49,12 +49,12 @@ int main(int argc, char ** argv)
         goto cleanup;
     }
 
-    if (!NESx_LoadROM(&nes, flags->argv[1])) {
+    if (!NESx_ROM_Load(&nes, flags->argv[1])) {
         status = 1;
         goto cleanup;
     }
 
-    NESx_PrintROMHeader(&nes);
+    NESx_ROM_PrintHeader(&nes);
 
     nes.CPU.PC = 0xC000;
     nes.CPU.AB = nes.CPU.PC;

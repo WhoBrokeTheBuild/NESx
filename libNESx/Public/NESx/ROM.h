@@ -4,6 +4,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define NESX_TRAINER_SIZE      0x200
+#define NESX_PRG_ROM_BANK_SIZE 0x4000
+#define NESX_PRG_RAM_BANK_SIZE 0x2000
+#define NESX_CHR_ROM_BANK_SIZE 0x2000
+// #define NESX_CHR_RAM_BANK_SIZE 0x2000
+
 typedef struct nesx nesx_t;
 
 typedef struct nesx_rom_header
@@ -14,8 +20,8 @@ typedef struct nesx_rom_header
         {
             uint8_t Magic[4];
 
-            uint8_t PRGROMSize; // * 16KB
-            uint8_t CHRROMSize; // * 8KB, 0 = CHR RAM
+            uint8_t PRGROMBanks; // * 16kB
+            uint8_t CHRROMBanks; // * 8kB
 
             // Flags6
             struct
@@ -40,7 +46,8 @@ typedef struct nesx_rom_header
                 uint8_t MapperHigh : 4;
             };
 
-            uint8_t Flags8;
+            uint8_t PRGRAMBanks; // * 8kB
+
             uint8_t Flags9;
             uint8_t Flags10;
 
@@ -54,9 +61,28 @@ typedef struct nesx_rom_header
 
 } nesx_rom_header_t;
 
-bool NESx_LoadROM(nesx_t * ctx, const char * filename);
+typedef struct nesx_rom
+{
+    nesx_rom_header_t Header;
 
-void NESx_PrintROMHeader(nesx_t * ctx);
+    uint8_t * Trainer;
+
+    uint8_t * PRGROM;
+    size_t PRGROMSize;
+
+    uint8_t * PRGRAM;
+    size_t PRGRAMSize;
+
+    uint8_t * CHRROM;
+    size_t CHRROMSize;
+
+} nesx_rom_t;
+
+bool NESx_ROM_Load(nesx_t * ctx, const char * filename);
+
+void NESx_ROM_Term(nesx_t * ctx);
+
+void NESx_ROM_PrintHeader(nesx_t * ctx);
 
 const char * NESx_GetMapperName(nesx_t * ctx);
 

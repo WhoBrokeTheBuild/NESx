@@ -298,6 +298,7 @@ void MOS6502_Init(mos6502_t * cpu)
     cpu->RES = 1;
 
     cpu->BCDEnabled = true;
+    cpu->Cycles = 0;
 }
 
 void MOS6502_Tick(mos6502_t * cpu)
