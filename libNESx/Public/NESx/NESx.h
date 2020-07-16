@@ -26,6 +26,13 @@ bool NESx_Init(nesx_t * ctx);
 
 void NESx_Term(nesx_t * ctx);
 
+// Run one cycle
 void NESx_Tick(nesx_t * ctx);
+
+// Run one instruction
+void NESx_Step(nesx_t * ctx);
+
+// Run one frame
+void NESx_Frame(nesx_t * ctx);
 
 #endif // NESX_H

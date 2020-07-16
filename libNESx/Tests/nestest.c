@@ -53,8 +53,7 @@ bool compareLogEntry(log_entry_t * guess, log_entry_t * check)
     }
 
     if (guess->P != check->P) {
-        printf(
-            "P is %02X (%c%c-%c%c%c%c), should be %02X (%c%c-%c%c%c%c)\n",
+        printf("P is %02X (%c%c-%c%c%c%c), should be %02X (%c%c-%c%c%c%c)\n",
             guess->P,
             ((guess->P & (1 << 7)) ? 'N' : 'n'),
             ((guess->P & (1 << 6)) ? 'V' : 'v'),

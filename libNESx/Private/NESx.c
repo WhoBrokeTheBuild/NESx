@@ -1,8 +1,8 @@
 #include <NESx/NESx.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 bool NESx_Init(nesx_t * ctx)
 {
@@ -18,6 +18,7 @@ bool NESx_Init(nesx_t * ctx)
     ctx->CPU.S = 0xFD;
 
     NESx_MMU_Init(ctx);
+    NESx_PPU_Init(ctx);
 
     return true;
 }
@@ -30,11 +31,39 @@ void NESx_Term(nesx_t * ctx)
 
 void NESx_Tick(nesx_t * ctx)
 {
+    // 1 CPU Tick
     NESx_MMU_CPU_Tick(ctx);
     MOS6502_Tick(&ctx->CPU);
 
-    for (int i = 0; i < 3; ++i) {
-        NESx_MMU_PPU_Tick(ctx);
-        NESx_PPU_Tick(ctx);
-    }
+    // 3 PPU Ticks
+    NESx_MMU_PPU_Tick(ctx);
+    NESx_PPU_Tick(ctx);
+
+    NESx_MMU_PPU_Tick(ctx);
+    NESx_PPU_Tick(ctx);
+
+    NESx_MMU_PPU_Tick(ctx);
+    NESx_PPU_Tick(ctx);
 }
+
+// clang-format off
+
+void NESx_Step(nesx_t * ctx)
+{
+    do {
+        NESx_Tick(ctx);
+    }
+    while (!ctx->CPU.SYNC);
+}
+
+void NESx_Frame(nesx_t * ctx)
+{
+    int scanline;
+    do {
+        scanline = ctx->PPU.Scanline;
+        NESx_Tick(ctx);
+    }
+    while (scanline <= ctx->PPU.Scanline);
+}
+
+// clang-format on

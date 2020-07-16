@@ -26,7 +26,6 @@ static void NROM_PRGWriteByte(nesx_t * ctx, uint16_t address, uint8_t data)
     if (address <= 0x8000) {
         rom->PRGRAM[(address - 0x6000) % rom->PRGRAMSize] = data;
     }
-
 }
 
 static uint8_t NROM_CHRReadByte(nesx_t * ctx, uint16_t address)
@@ -36,12 +35,10 @@ static uint8_t NROM_CHRReadByte(nesx_t * ctx, uint16_t address)
 
 static void NROM_CHRWriteByte(nesx_t * ctx, uint16_t address, uint8_t data)
 {
-
 }
 
-
 static nesx_mapper_t * NROM_New(nesx_t * ctx)
-{   
+{
     nesx_mapper_t * map = (nesx_mapper_t *)malloc(sizeof(nesx_mapper_t));
 
     map->PRGReadByte = NROM_PRGReadByte;
@@ -67,6 +64,6 @@ static nesx_mapper_t * NROM_New(nesx_t * ctx)
     }
 
     return map;
-} 
+}
 
 #endif // NESX_MAPPER_NROM_H

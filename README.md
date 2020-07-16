@@ -23,14 +23,14 @@ cmake --build .
 Build flags can be specified to cmake as `-DNAME=VALUE`, e.g.
 
 ```sh
-cmake -DBUILD_TESTS=ON ..
+cmake -DBUILD_TOOLS=ON ..
 ```
 
 * **BUILD_TOOLS**, default `OFF`
 
   Builds additional tools for debugging, assembling, etc.
 
-* **BUILD_TESTS**, default `OFF`
+* **BUILD_TESTING**, default `ON`
 
   Builds automated tests.
 

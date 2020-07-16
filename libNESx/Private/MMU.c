@@ -1,6 +1,7 @@
 #include <NESx/MMU.h>
 #include <NESx/NESx.h>
 
+#include <stdlib.h>
 #include <string.h>
 
 // http://wiki.nesdev.com/w/index.php/CPU_memory_map
@@ -28,7 +29,7 @@ uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
 
     switch (address >> 12) {
     case 0x0:
-    case 0x1: 
+    case 0x1:
         return mmu->InternalRAM[address % sizeof(mmu->InternalRAM)];
         break;
     case 0x2:
@@ -55,8 +56,7 @@ uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
     case 0xC:
     case 0xD:
     case 0xE:
-    case 0xF: 
-        return mmu->Mapper->PRGReadByte(ctx, address);
+    case 0xF: return mmu->Mapper->PRGReadByte(ctx, address);
     }
 
     return 0x00;
@@ -66,23 +66,22 @@ uint8_t NESx_MMU_PPU_ReadByte(nesx_t * ctx, uint16_t address)
 {
     nesx_ppu_t * ppu = &ctx->PPU;
     nesx_mmu_t * mmu = &ctx->MMU;
-    
+
     uint16_t index;
 
-    switch(address >> 12) {
+    switch (address >> 12) {
     case 0x0:
-    case 0x1:
-        return mmu->Mapper->CHRReadByte(ctx, address);
+    case 0x1: return mmu->Mapper->CHRReadByte(ctx, address);
     case 0x2:
     case 0x3:
         if (address >= 0x3F00) {
-            return ppu->PaletteRAM[(address - 0x3F00) % sizeof(ppu->PaletteRAM)];
+            return ppu
+                ->PaletteRAM[(address - 0x3F00) % sizeof(ppu->PaletteRAM)];
         }
-        index   = (address - 0x2000) / 0x400;
+        index = (address - 0x2000) / 0x400;
         address = (address - 0x2000) % 0x400;
         return ppu->NameTables[index][address];
-    default:
-        assert(false);
+    default: assert(false);
     };
 
     return 0x00;

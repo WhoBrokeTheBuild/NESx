@@ -1806,11 +1806,8 @@ void MOS6502_Tick(mos6502_t * cpu)
     case _CYCLE(0xFE, 6): _FETCH(); break;
 
     default:
-        fprintf(stderr,
-            "unsupported opcode/cycle %02X:%d\n",
-            (cpu->IR >> 3),
-            (cpu->IR & 0b111));
-        // assert(false);
+        // fprintf(stderr, "unsupported opcode/cycle %02X:%d\n", (cpu->IR >> 3),
+        // (cpu->IR & 0b111)); assert(false);
         _FETCH();
         break;
     };

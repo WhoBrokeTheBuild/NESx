@@ -72,9 +72,7 @@ bool NESx_ROM_Load(nesx_t * ctx, const char * filename)
     hdr->MapperNumber = (hdr->MapperHigh << 4) | (hdr->MapperLow);
 
     switch (hdr->MapperNumber) {
-    case 0:
-        ctx->MMU.Mapper = NROM_New(ctx);
-        break;
+    case 0: ctx->MMU.Mapper = NROM_New(ctx); break;
 
     default:
         fprintf(stderr, "unsupported mapper #%d\n", hdr->MapperNumber);
@@ -96,10 +94,10 @@ void NESx_ROM_Term(nesx_t * ctx)
 
     free(rom->PRGROM);
     rom->PRGROM = NULL;
-    
+
     free(rom->PRGRAM);
     rom->PRGRAM = NULL;
-    
+
     free(rom->CHRROM);
     rom->CHRROM = NULL;
 }
@@ -119,12 +117,12 @@ void NESx_ROM_PrintHeader(nesx_t * ctx)
 const char * NESx_GetMapperName(nesx_t * ctx)
 {
     switch (ctx->ROM.Header.MapperNumber) {
-    case 0:     return "NROM";
-    case 1:     return "MMC1";
-    case 2:     return "UxROM";
-    case 3:     return "CNROM";
-    case 4:     return "MMC3";
-    case 5:     return "MMC5";
-    default:    return "Unsup.";
+    case 0: return "NROM";
+    case 1: return "MMC1";
+    case 2: return "UxROM";
+    case 3: return "CNROM";
+    case 4: return "MMC3";
+    case 5: return "MMC5";
+    default: return "Unsup.";
     }
 }

@@ -6,11 +6,6 @@ LIST(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/CMake)
 INCLUDE(SourceFolders)
 INCLUDE(Version)
 
-# Enable testing if we are not a subdirectory
-IF(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    INCLUDE(CTest)
-ENDIF()
-
 ###
 ### Project
 ###
@@ -21,6 +16,11 @@ PROJECT(
     DESCRIPTION "A Toy Nintendo Entertainment System Emulator"
     VERSION ${PROJECT_VERSION}
 )
+
+# Enable testing if we are not a subdirectory
+IF(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    INCLUDE(CTest)
+ENDIF()
 
 ###
 ### Options
@@ -35,10 +35,6 @@ OPTION(BUILD_THIRDPARTY "Build Missing Third-Party Dependencies"    ON)
 
 # Allow for custom organization of files in IDEs
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
-
-IF(BUILD_TESTING)
-    ENABLE_TESTING()
-ENDIF()
 
 ###
 ### Macros

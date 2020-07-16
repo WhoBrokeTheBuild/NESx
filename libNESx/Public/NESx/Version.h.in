@@ -1,0 +1,12 @@
+#ifndef NESX_VERSION_H
+#define NESX_VERSION_H
+
+#define NESX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define NESX_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define NESX_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+#define NESX_VERSION_NUMBER ((NESX_VERSION_MAJOR << 16) |                      \
+                             (NESX_VERSION_MINOR << 8) |                       \
+                             NESX_VERSION_PATCH);
+
+#endif // NESX_VERSION_H

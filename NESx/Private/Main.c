@@ -4,15 +4,18 @@
 #include <NESx/NESx.h>
 #include <cflags.h>
 
-#if defined(NESX_HAVE_GTK3)
+#include <SDL.h>
+#include <glad/gl.h>
 
-#include "Debug/Debug.h"
-
+#if defined(NESX_DEBUGGER)
+#    include "Debug.h"
 #endif
 
 int main(int argc, char ** argv)
 {
     int status = 0;
+    SDL_Window * window = NULL;
+    SDL_GLContext glCtx = NULL;
 
     cflags_t * flags = cflags_init();
 
@@ -54,28 +57,83 @@ int main(int argc, char ** argv)
         goto cleanup;
     }
 
+    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
+        fprintf(stderr, "failed to init SDL: %s\n", SDL_GetError());
+        status = 1;
+        goto cleanup;
+    }
+
+    // clang-format off
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    window = SDL_CreateWindow("NESx", 
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+        256, 240,
+        SDL_WINDOW_OPENGL);
+
+    // clang-format on
+
+    if (!window) {
+        fprintf(stderr, "failed to create SDL window: %s\n", SDL_GetError());
+        status = 1;
+        goto cleanup;
+    }
+
+    glCtx = SDL_GL_CreateContext(window);
+
+    if (!gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress)) {
+        fprintf(stderr, "failed to initialize OpenGL context\n");
+        status = 1;
+        goto cleanup;
+    }
+
     NESx_ROM_PrintHeader(&nes);
 
     nes.CPU.PC = 0xC000;
     nes.CPU.AB = nes.CPU.PC;
     MOS6502_SetStatusRegister(&nes.CPU, 0x24);
 
-#if defined(NESX_HAVE_GTK3)
+#if defined(NESX_DEBUGGER)
 
-    if (!DebugInit(&nes, flags->argc, flags->argv)) {
+    if (!DebugRun(&nes, window, flags->argc, flags->argv)) {
         status = 1;
         goto cleanup;
     }
 
 #else
 
-    // Normal Init
+    SDL_Event event;
+    bool running = true;
+    while (running) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                running = false;
+            }
+        }
+
+        NESx_Frame(&nes);
+
+        SDL_GL_SwapWindow(window);
+    }
 
 #endif
 
 cleanup:
 
+    SDL_GL_DeleteContext(glCtx);
+    SDL_DestroyWindow(window);
+    window = NULL;
+
+    SDL_Quit();
+
     NESx_Term(&nes);
+
     cflags_free(flags);
+
     return status;
 }

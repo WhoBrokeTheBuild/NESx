@@ -6,14 +6,22 @@ FILE(
     "Private/*.c"
 )
 
+FILE(
+    GLOB_RECURSE
+    debug
+    "Debug/*.h"
+    "Debug/*.c"
+)
+
 SET(target NESx)
+SET(target_debug NESxd)
 
 ADD_EXECUTABLE(
     ${target}
     ${private}
 )
 
-SET_SOURCE_FOLDERS(${private})
+SET_SOURCE_FOLDERS(${private} ${debug})
 
 SET_TARGET_PROPERTIES(
     ${target}
@@ -43,23 +51,12 @@ TARGET_LINK_LIBRARIES(
 )
 
 IF(GTK3_FOUND)
-    TARGET_COMPILE_DEFINITIONS(
-        ${target}
-        PRIVATE
-            NESX_HAVE_GTK3
-    )
-
-    TARGET_LINK_LIBRARIES(
-        ${target}
-        PUBLIC
-            GTK3::GTK3
-    )
-
     SET(RESOURCES_DIR   ${CMAKE_CURRENT_SOURCE_DIR}/Resources)
     SET(RESOURCE_CONFIG ${RESOURCES_DIR}/debugger.gresource.xml)
 
-    SET(RESOURCE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/resource.h)
-    SET(RESOURCE_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/resource.c)
+    FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Debug)
+    SET(RESOURCE_HEADER ${CMAKE_CURRENT_BINARY_DIR}/Debug/resource.h)
+    SET(RESOURCE_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/Debug/resource.c)
 
     FILE(
         GLOB_RECURSE
@@ -82,17 +79,43 @@ IF(GTK3_FOUND)
         WORKING_DIRECTORY ${RESOURCES_DIR}
     )
 
-    TARGET_SOURCES(
-        ${target}
-        PRIVATE
-            ${RESOURCE_HEADER}
-            ${RESOURCE_SOURCE}
+    ADD_EXECUTABLE(
+        ${target_debug}
+        ${private}
+        ${debug}
+        ${RESOURCE_HEADER}
+        ${RESOURCE_SOURCE}
     )
 
+    SET_TARGET_PROPERTIES(
+        ${target_debug}
+        PROPERTIES
+            C_STANDARD 11
+    )
+    
     TARGET_INCLUDE_DIRECTORIES(
-        ${target}
+        ${target_debug}
         PRIVATE
-            ${CMAKE_CURRENT_BINARY_DIR}
+            Private
+            Debug
+            ${CMAKE_CURRENT_BINARY_DIR}/Debug
+    )
+
+    TARGET_COMPILE_DEFINITIONS(
+        ${target_debug}
+        PRIVATE
+            NESX_DEBUGGER
+            # Disable Visual Studio "not secure" warnings
+            $<$<C_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
+    )
+
+    TARGET_LINK_LIBRARIES(
+        ${target_debug}
+        PUBLIC
+            libNESx
+            cflags::cflags
+            SDL2::SDL2
+            GTK3::GTK3
     )
 ENDIF()
 
@@ -101,7 +124,7 @@ ENDIF()
 IF(ClangFormat_FOUND)
     ADD_CUSTOM_TARGET(
         format-${target}
-        COMMAND ${ClangFormat_PROGRAM} -i ${public} ${private}
+        COMMAND ${ClangFormat_PROGRAM} -i ${private}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
 

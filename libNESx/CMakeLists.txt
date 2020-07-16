@@ -14,6 +14,13 @@ FILE(
 
 SET(target libNESx)
 
+CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/NESx/Version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Public/NESx/Version.h
+)
+
+LIST(APPEND public ${CMAKE_CURRENT_BINARY_DIR}/Public/NESx/Version.h)
+
 ADD_LIBRARY(
     ${target}
     ${public}
@@ -34,6 +41,7 @@ TARGET_INCLUDE_DIRECTORIES(
     PUBLIC
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Public>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/Public>
     PRIVATE
         Private
 )

@@ -13,7 +13,6 @@ G_BEGIN_DECLS
 // {
 //     GObject object;
 
-
 // };
 
 // GType disassembly_view_get_type();
@@ -22,6 +21,5 @@ G_BEGIN_DECLS
 // void disassembly_view_();
 
 G_END_DECLS
-
 
 #endif // DEBUG_DISASSEMBLY_VIEW_H

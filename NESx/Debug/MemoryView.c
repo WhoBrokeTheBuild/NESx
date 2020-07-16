@@ -2,15 +2,15 @@
 
 #include <ctype.h>
 
-G_DEFINE_TYPE(NESxMemoryView, nesx_memory_view, GTK_TYPE_SCROLLED_WINDOW)
+G_DEFINE_TYPE(DebugMemoryView, debug_memory_view, GTK_TYPE_SCROLLED_WINDOW)
 
-#define _ADDRESS_LINE_LENGTH    5
-#define _DATA_LINE_LENGTH       48
-#define _TEXT_LINE_LENGTH       17
+#define _ADDRESS_LINE_LENGTH 5
+#define _DATA_LINE_LENGTH    48
+#define _TEXT_LINE_LENGTH    17
 
 #define MARGIN 8
 
-void nesx_memory_view_init(NESxMemoryView * mem)
+void debug_memory_view_init(DebugMemoryView * mem)
 {
     GtkScrolledWindow * window = &mem->window;
     mem->region = NULL;
@@ -20,14 +20,14 @@ void nesx_memory_view_init(NESxMemoryView * mem)
 
     gtk_scrolled_window_set_policy(window, GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
 
-    // mem->scrollbar = GTK_SCROLLBAR(gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, mem->adj));
-    // g_signal_connect(G_OBJECT(mem->adj), "value_changed", G_CALLBACK(memory_view_scrolled), mem);
+    // mem->scrollbar =
+    // GTK_SCROLLBAR(gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, mem->adj));
+    // g_signal_connect(G_OBJECT(mem->adj), "value_changed",
+    // G_CALLBACK(memory_view_scrolled), mem);
     // gtk_container_add(GTK_CONTAINER(mem), GTK_WIDGET(mem->scrollbar));
 
     GtkBox * box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
-    if (!box) {
-
-    }
+    if (!box) { }
 
     mem->addressView = GTK_TEXT_VIEW(gtk_text_view_new());
     gtk_container_add(GTK_CONTAINER(box), GTK_WIDGET(mem->addressView));
@@ -47,7 +47,7 @@ void nesx_memory_view_init(NESxMemoryView * mem)
 
     mem->dataBuffer = gtk_text_buffer_new(NULL);
     gtk_text_view_set_buffer(mem->dataView, mem->dataBuffer);
-    
+
     mem->textView = GTK_TEXT_VIEW(gtk_text_view_new());
     gtk_container_add(GTK_CONTAINER(box), GTK_WIDGET(mem->textView));
     gtk_text_view_set_monospace(mem->textView, TRUE);
@@ -62,21 +62,22 @@ void nesx_memory_view_init(NESxMemoryView * mem)
     gtk_widget_show_all(GTK_WIDGET(&mem->window));
 }
 
-void nesx_memory_view_class_init(NESxMemoryViewClass * klass)
+void debug_memory_view_class_init(DebugMemoryViewClass * klass)
 {
 }
 
-GtkWidget * nesx_memory_view_new()
+GtkWidget * debug_memory_view_new()
 {
-    NESxMemoryView * mem;
+    DebugMemoryView * mem;
 
-    mem = NESX_MEMORY_VIEW(g_object_new(nesx_memory_view_get_type(), NULL));
+    mem = DEBUG_MEMORY_VIEW(g_object_new(debug_memory_view_get_type(), NULL));
     g_return_val_if_fail(mem != NULL, NULL);
 
     return GTK_WIDGET(mem);
 }
 
-void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t startAddress, uint16_t endAddress, uint8_t * data, size_t size)
+void debug_memory_view_add_region(DebugMemoryView * mem, uint16_t startAddress,
+    uint16_t endAddress, uint8_t * data, size_t size)
 {
     // FIXME: Totally a hack
     const double FONT_HEIGHT = 18.0;
@@ -85,14 +86,14 @@ void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t startAddress, ui
     char dataLine[49];
     char textLine[18];
 
-    NESxMemoryViewRegion ** next = &mem->region;
+    DebugMemoryViewRegion ** next = &mem->region;
     while (*next) {
         next = &(*next)->next;
     }
 
     gtk_widget_show_all(GTK_WIDGET(mem));
 
-    *next = (NESxMemoryViewRegion*)malloc(sizeof(NESxMemoryViewRegion));
+    *next = (DebugMemoryViewRegion *)malloc(sizeof(DebugMemoryViewRegion));
     if (!*next) {
         fprintf(stderr, "out of memory\n");
         return;
@@ -105,10 +106,22 @@ void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t startAddress, ui
     (*next)->next = NULL;
     (*next)->scroll = mem->scrollHeight;
 
-    const char hex[] = { 
-        '0', '1', '2', '3', '4', '5', '6', '7', 
-        '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' 
-    };
+    const char hex[] = { '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F' };
 
     GtkTextIter iter;
 
@@ -162,16 +175,17 @@ void nesx_memory_view_add_region(NESxMemoryView * mem, uint16_t startAddress, ui
     mem->scrollHeight += FONT_HEIGHT;
 }
 
-void nesx_memory_view_scroll_to_address(NESxMemoryView * mem, uint16_t address)
+void debug_memory_view_scroll_to_address(DebugMemoryView * mem, uint16_t address)
 {
-    NESxMemoryViewRegion * region = mem->region;
+    DebugMemoryViewRegion * region = mem->region;
     while (region) {
         if (address >= region->start && address < region->end) {
-            GtkAdjustment * vadjust = gtk_scrolled_window_get_vadjustment(&mem->window);
+            GtkAdjustment * vadjust
+                = gtk_scrolled_window_get_vadjustment(&mem->window);
             gtk_adjustment_set_value(vadjust, region->scroll);
             return;
         }
-        
+
         region = region->next;
     }
 }
