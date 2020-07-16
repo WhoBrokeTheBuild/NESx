@@ -39,6 +39,6 @@ before_install:
 script:
   - mkdir "$TRAVIS_BUILD_DIR/build"
   - cd "$TRAVIS_BUILD_DIR/build"
-  - cmake -DBUILD_TOOLS=ON -DBUILD_TESTS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
+  - cmake -DBUILD_TOOLS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
   - make -l all
   - ctest --output-on-failure
