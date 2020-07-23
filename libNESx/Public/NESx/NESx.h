@@ -10,6 +10,9 @@
 #include <NESx/PPU.h>
 #include <NESx/ROM.h>
 
+#define NESX_WIDTH  256
+#define NESX_HEIGHT 240
+
 typedef struct nesx
 {
     mos6502_t CPU;
@@ -19,6 +22,8 @@ typedef struct nesx
     nesx_mmu_t MMU;
 
     nesx_rom_t ROM;
+
+    int Verbosity;
 
 } nesx_t;
 

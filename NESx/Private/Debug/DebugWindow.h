@@ -1,29 +1,25 @@
-#ifndef NESX_DEBUG_H
-#define NESX_DEBUG_H
+#ifndef NESX_DEBUG_WINDOW_H
+#define NESX_DEBUG_WINDOW_H
 
 #include <NESx/NESx.h>
 #include <gtk/gtk.h>
-#include <SDL.h>
 
 #include <stdbool.h>
 
 #include "MemoryView.h"
 
-typedef struct mem_region_select
+G_DECLARE_FINAL_TYPE(
+    NESxDebugWindow,
+    nesx_debug_window,
+    NESX, DEBUG_WINDOW,
+    GtkWindow
+)
+
+typedef struct _NESxDebugWindow NESxDebugWindow;
+
+struct _NESxDebugWindow
 {
-    uint16_t address;
-    const char * name;
-
-} mem_region_select_t;
-
-typedef struct debug_ctx
-{
-    bool windowOpen;
-
-    bool running;
-
-    GtkApplication * app;
-    GtkApplicationWindow * window;
+    GtkWindow parent;
 
     nesx_t * nes;
     mos6502_t * cpu;
@@ -79,6 +75,27 @@ typedef struct debug_ctx
 
     // Disassembly View
 
+};
+
+
+typedef struct mem_region_select
+{
+    uint16_t address;
+    const char * name;
+
+} mem_region_select_t;
+
+typedef struct debug_ctx
+{
+    bool windowOpen;
+
+    bool running;
+
+    GtkApplication * app;
+    GtkApplicationWindow * window;
+
+
+
     // Memory View
 
     mem_region_select_t * memoryRegions;
@@ -101,6 +118,6 @@ typedef struct debug_ctx
 
 } debug_ctx_t;
 
-bool DebugRun(nesx_t * nes, SDL_Window * window, int argc, char ** argv);
+bool DebugRun(nesx_t * nes, int argc, char ** argv);
 
-#endif // NESX_DEBUG_H
+#endif // NESX_DEBUG_WINDOW_H

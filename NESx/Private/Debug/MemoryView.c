@@ -69,10 +69,7 @@ void debug_memory_view_class_init(DebugMemoryViewClass * klass)
 GtkWidget * debug_memory_view_new()
 {
     DebugMemoryView * mem;
-
     mem = DEBUG_MEMORY_VIEW(g_object_new(debug_memory_view_get_type(), NULL));
-    g_return_val_if_fail(mem != NULL, NULL);
-
     return GTK_WIDGET(mem);
 }
 

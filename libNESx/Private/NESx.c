@@ -17,6 +17,7 @@ bool NESx_Init(nesx_t * ctx)
     ctx->CPU.Y = 0;
     ctx->CPU.S = 0xFD;
 
+    NESx_ROM_Init(ctx);
     NESx_MMU_Init(ctx);
     NESx_PPU_Init(ctx);
 

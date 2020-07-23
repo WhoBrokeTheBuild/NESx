@@ -16,6 +16,33 @@ const uint8_t NES_ROM_MAGIC[] = {
     0x1A,
 };
 
+void NESx_ROM_Init(nesx_t * ctx)
+{
+    nesx_rom_t * rom = &ctx->ROM;
+
+    rom->Trainer = NULL;
+    rom->PRGROM = NULL;
+    rom->PRGRAM = NULL;
+    rom->CHRROM = NULL;
+}
+
+void NESx_ROM_Term(nesx_t * ctx)
+{
+    nesx_rom_t * rom = &ctx->ROM;
+
+    free(rom->Trainer);
+    rom->Trainer = NULL;
+
+    free(rom->PRGROM);
+    rom->PRGROM = NULL;
+
+    free(rom->PRGRAM);
+    rom->PRGRAM = NULL;
+
+    free(rom->CHRROM);
+    rom->CHRROM = NULL;
+}
+
 bool NESx_ROM_Load(nesx_t * ctx, const char * filename)
 {
     nesx_rom_t * rom = &ctx->ROM;
@@ -83,23 +110,6 @@ bool NESx_ROM_Load(nesx_t * ctx, const char * filename)
     ctx->CPU.PCH = NESx_MMU_CPU_ReadByte(ctx, 0xFFFF);
 
     return true;
-}
-
-void NESx_ROM_Term(nesx_t * ctx)
-{
-    nesx_rom_t * rom = &ctx->ROM;
-
-    free(rom->Trainer);
-    rom->Trainer = NULL;
-
-    free(rom->PRGROM);
-    rom->PRGROM = NULL;
-
-    free(rom->PRGRAM);
-    rom->PRGRAM = NULL;
-
-    free(rom->CHRROM);
-    rom->CHRROM = NULL;
 }
 
 void NESx_ROM_PrintHeader(nesx_t * ctx)

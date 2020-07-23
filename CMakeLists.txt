@@ -58,6 +58,7 @@ IF(BUILD_THIRDPARTY)
 
     # Set _ROOT variables for config-based packages
     SET(cflags_ROOT     ${THIRDPARTY_BINARY_DIR}/cflags)
+    SET(portaudio_ROOT  ${THIRDPARTY_BINARY_DIR}/portaudio)
     SET(SDL2_ROOT       ${THIRDPARTY_BINARY_DIR}/SDL2)
 
     EXECUTE_PROCESS(
@@ -94,9 +95,10 @@ IF(BUILD_THIRDPARTY)
 ENDIF()
 
 FIND_PACKAGE(cflags CONFIG REQUIRED)
-FIND_PACKAGE(SDL2 2.0.6 CONFIG QUIET)
 
+FIND_PACKAGE(SDL2 2.0.6 CONFIG QUIET)
 FIND_PACKAGE(GTK3 QUIET)
+FIND_PACKAGE(portaudio CONFIG)
 
 FIND_PACKAGE(ClangFormat)
 
@@ -129,7 +131,21 @@ IF(BUILD_TOOLS)
     ADD_SUBDIRECTORY(Assembler)
 ENDIF()
 
-ADD_SUBDIRECTORY(NESx)
+IF(GTK3_FOUND AND portaudio_FOUND)
+    ADD_SUBDIRECTORY(NESx)
+ELSE()
+    MESSAGE(WARNING "Unable to build main emulator. Make sure you have GTK3 and portaudio configured properly.")
+ENDIF()
+
+IF(SDL2_FOUND)
+    ADD_SUBDIRECTORY(NESxSDL)
+ELSE()
+    MESSAGE(WARNING "Unable to build SDL2 emulator. Make sure you have SDL2 configured properly.")
+ENDIF()
+
+IF(NOT TARGET NESx AND NOT TARGET NESxSDL)
+    MESSAGE(ERROR "Unable to build any emulators.")
+ENDIF()
 
 # Set VisualStudio startup project
 #SET_PROPERTY(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT "")
@@ -138,11 +154,25 @@ ADD_SUBDIRECTORY(NESx)
 ### Install
 ###
 
+SET(exports
+    libMOS6502
+    libNESx
+)
+
+IF(TARGET NESx)
+    LIST(APPEND exports NESx)
+ENDIF()
+
+IF(TARGET NESxSDL)
+    LIST(APPEND exports NESxSDL)
+ENDIF()
+
 INSTALL(
     TARGETS 
         libMOS6502
         libNESx
         NESx
+        NESxSDL
     EXPORT NESxTargets
 )
 

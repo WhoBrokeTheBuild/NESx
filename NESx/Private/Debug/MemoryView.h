@@ -5,10 +5,11 @@
 #include <stdint.h>
 
 G_DECLARE_FINAL_TYPE(
-    DebugMemoryView, 
-    debug_memory_view, 
-    DEBUG, MEMORY_VIEW, 
-    GtkScrolledWindow)
+    DebugMemoryView,
+    debug_memory_view,
+    DEBUG, MEMORY_VIEW,
+    GtkScrolledWindow
+)
 
 typedef struct _DebugMemoryView DebugMemoryView;
 typedef struct _DebugMemoryViewRegion DebugMemoryViewRegion;

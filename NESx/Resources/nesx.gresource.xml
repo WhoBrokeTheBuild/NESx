@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/">
+    <file preprocess="xml-stripblanks">main.glade</file>
     <file preprocess="xml-stripblanks">debugger.glade</file>
   </gresource>
 </gresources>

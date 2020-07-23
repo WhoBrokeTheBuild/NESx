@@ -27,6 +27,29 @@ IF(NOT cflags_FOUND)
     )
 ENDIF()
 
+# portaudio
+
+SET(portaudio_ROOT       ${CMAKE_BINARY_DIR}/portaudio)
+SET(portaudio_SOURCE_DIR ${CMAKE_BINARY_DIR}/portaudio_src)
+SET(portaudio_BINARY_DIR ${CMAKE_BINARY_DIR}/portaudio_bin)
+
+FIND_PACKAGE(portaudio CONFIG QUIET)
+
+IF(NOT portaudio_FOUND)
+    ExternalProject_Add(
+        ThirdParty_portaudio
+        GIT_REPOSITORY      "https://git.assembla.com/portaudio.git"
+        GIT_TAG             "master"
+        SOURCE_DIR          ${portaudio_SOURCE_DIR}
+        BINARY_DIR          ${portaudio_BINARY_DIR}
+        CMAKE_ARGS          -DCMAKE_INSTALL_PREFIX=${portaudio_ROOT}
+        BUILD_COMMAND       ""
+        UPDATE_COMMAND      ""
+        TEST_COMMAND        ""
+        INSTALL_COMMAND     ${CMAKE_COMMAND} --build . --target install --config Release
+    )
+ENDIF()
+
 # SDL2
 
 SET(SDL2_ROOT       ${CMAKE_BINARY_DIR}/SDL2)
@@ -44,11 +67,11 @@ IF(NOT SDL2_FOUND)
         BINARY_DIR          ${SDL2_BINARY_DIR}
         CMAKE_ARGS          -DCMAKE_INSTALL_PREFIX=${SDL2_ROOT}
                             -DBUILD_SHARED_LIBS=ON
-                            BUILD_COMMAND       ""
-                            UPDATE_COMMAND      ""
-                            TEST_COMMAND        ""
-                            INSTALL_COMMAND     ${CMAKE_COMMAND} --build . --target install --config Release
-                            COMMAND             ${CMAKE_COMMAND} --build . --target install --config Debug
-                            PATCH_COMMAND       ${SDL2_PATCH_COMMAND}
+        BUILD_COMMAND       ""
+        UPDATE_COMMAND      ""
+        TEST_COMMAND        ""
+        INSTALL_COMMAND     ${CMAKE_COMMAND} --build . --target install --config Release
+        COMMAND             ${CMAKE_COMMAND} --build . --target install --config Debug
+        PATCH_COMMAND       ${SDL2_PATCH_COMMAND}
     )
 ENDIF()

@@ -78,9 +78,11 @@ typedef struct nesx_rom
 
 } nesx_rom_t;
 
-bool NESx_ROM_Load(nesx_t * ctx, const char * filename);
+void NESx_ROM_Init(nesx_t * ctx);
 
 void NESx_ROM_Term(nesx_t * ctx);
+
+bool NESx_ROM_Load(nesx_t * ctx, const char * filename);
 
 void NESx_ROM_PrintHeader(nesx_t * ctx);
 
