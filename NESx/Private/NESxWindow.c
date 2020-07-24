@@ -4,8 +4,8 @@
 #include <epoxy/gl.h>
 #include <NESx/Version.h>
 
-const unsigned ATTRIB_POSITION  = 0;
-const unsigned ATTRIB_UV        = 1;
+#define ATTRIB_POSITION  0
+#define ATTRIB_UV        1
 
 const char * VERTEX_SHADER = 
 "#version 330 core                                      \n"
@@ -20,9 +20,10 @@ const char * VERTEX_SHADER =
 const char * FRAGMENT_SHADER =
 "#version 330 core                                      \n"
 "in vec2 UV;                                            \n"
+"uniform sampler2D Texture;                             \n"
 "out vec4 color;                                        \n"
 "void main() {                                          \n"
-"   color = vec4(UV, 0.0, 1.0);                         \n"
+"   color = texture2D(Texture, UV);                     \n"
 "}                                                      \n";
 
 const float VERTS[] = {
@@ -58,7 +59,15 @@ void nesx_window_init(NESxWindow * self)
 {
     gtk_widget_init_template(GTK_WIDGET(self));
 
+    self->open = true;
+    self->running = false;
     self->fullscreen = false;
+}
+
+void nesx_window_term(NESxWindow * self)
+{
+    self->open = false;
+    self->running = false;
 }
 
 void nesx_window_set_scale(NESxWindow * self, int scale)
@@ -72,7 +81,6 @@ void nesx_window_toggle_fullscreen(NESxWindow * self)
 {
     if (self->fullscreen) {
         gtk_window_unfullscreen(GTK_WINDOW(self));
-    1.0f, 0.0f, 0.0f,
         gtk_widget_show(GTK_WIDGET(self->menubar));
         self->fullscreen = false;
     }
@@ -81,6 +89,39 @@ void nesx_window_toggle_fullscreen(NESxWindow * self)
         gtk_widget_hide(GTK_WIDGET(self->menubar));
         self->fullscreen = true;
     }
+}
+
+void nesx_window_open_rom(NESxWindow * self)
+{
+    GtkWidget * dialog = gtk_file_chooser_dialog_new(
+        "Open ROM", 
+        GTK_WINDOW(self),
+        GTK_FILE_CHOOSER_ACTION_OPEN,
+        "Cancel", GTK_RESPONSE_CANCEL,
+        "Open", GTK_RESPONSE_ACCEPT,
+        NULL);
+
+    GtkFileFilter * filterROMs = gtk_file_filter_new();
+    gtk_file_filter_set_name(filterROMs, "NES ROMs (*.nes)");
+    gtk_file_filter_add_pattern(filterROMs, "*.nes");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filterROMs);
+
+    GtkFileFilter * filterAll = gtk_file_filter_new();
+    gtk_file_filter_set_name(filterAll, "All Files");
+    gtk_file_filter_add_pattern(filterAll, "*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filterAll);
+    
+    
+    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (result == GTK_RESPONSE_ACCEPT) {
+        char * filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        if (NESx_ROM_Load(self->nes, filename)) {
+            self->running = true;
+        }
+        g_free(filename);
+    }
+
+    gtk_widget_destroy(dialog);
 }
 
 void nesx_window_show_about(NESxWindow * self)
@@ -126,13 +167,25 @@ void nesx_window_gl_init(NESxWindow * self)
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
     printf("OpenGL Renderer: %s\n", glGetString(GL_RENDERER));
 
-
-    char infoLog[512];
-
-
-
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+
+    glGenTextures(1, &self->texture);
+    glBindTexture(GL_TEXTURE_2D, self->texture);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    self->pixels = (uint8_t *)malloc(NESX_WIDTH * NESX_HEIGHT * 4);
+    for (int i = 0; i < NESX_WIDTH * NESX_HEIGHT * 4; i += 4) {
+        self->pixels[i + 0] = rand() % 0xFF;
+        self->pixels[i + 1] = rand() % 0xFF;
+        self->pixels[i + 2] = rand() % 0xFF;
+        self->pixels[i + 3] = 0xFF;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NESX_WIDTH, NESX_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, self->pixels);
 
     unsigned vert = glCreateShader(GL_VERTEX_SHADER);
     unsigned frag = glCreateShader(GL_FRAGMENT_SHADER);
@@ -143,21 +196,12 @@ void nesx_window_gl_init(NESxWindow * self)
     glCompileShader(vert);
     glCompileShader(frag);
 
-    glGetShaderInfoLog(vert, sizeof(infoLog), NULL, infoLog);
-    printf("%s\n", infoLog);
-
-    glGetShaderInfoLog(frag, sizeof(infoLog), NULL, infoLog);
-    printf("%s\n", infoLog);
-
     self->shader = glCreateProgram();
 
     glAttachShader(self->shader, vert);
     glAttachShader(self->shader, frag);
 
     glLinkProgram(self->shader);
-
-    glGetProgramInfoLog(self->shader, sizeof(infoLog), NULL, infoLog);
-    printf("%s\n", infoLog);
 
     glDeleteShader(vert);
     glDeleteShader(frag);
@@ -170,15 +214,11 @@ void nesx_window_gl_init(NESxWindow * self)
     unsigned vbo[2];
     glGenBuffers(2, vbo);
 
-    // Vertices
-
     glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(VERTS), VERTS, GL_STATIC_DRAW);
 
     glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, NULL);
     glEnableVertexAttribArray(ATTRIB_POSITION);
-
-    // UVs
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(UVS), UVS, GL_STATIC_DRAW);
@@ -201,6 +241,15 @@ void nesx_window_gl_configure(NESxWindow * self, GdkEventConfigure * event)
 void nesx_window_gl_render(NESxWindow * self)
 {
     glClear(GL_COLOR_BUFFER_BIT);
+
+    for (int i = 0; i < NESX_WIDTH * NESX_HEIGHT * 4; i += 4) {
+        self->pixels[i + 0] = rand() % 0xFF;
+        self->pixels[i + 1] = rand() % 0xFF;
+        self->pixels[i + 2] = rand() % 0xFF;
+        self->pixels[i + 3] = 0xFF;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NESX_WIDTH, NESX_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, self->pixels);
 
     glUseProgram(self->shader);
     glBindVertexArray(self->vao);
@@ -243,6 +292,8 @@ void nesx_window_class_init(NESxWindowClass * klass)
     // gtk_widget_class_bind_template_child(widget_class, NESxWindow, menubar);
     gtk_widget_class_bind_template_child(widget_class, NESxWindow, glarea);
 
+    gtk_widget_class_bind_template_callback(widget_class, nesx_window_term);
+    gtk_widget_class_bind_template_callback(widget_class, nesx_window_open_rom);
     gtk_widget_class_bind_template_callback(widget_class, nesx_window_show_about);
     gtk_widget_class_bind_template_callback(widget_class, nesx_window_on_key_release);
     gtk_widget_class_bind_template_callback(widget_class, nesx_window_toggle_fullscreen);
@@ -255,4 +306,17 @@ void nesx_window_class_init(NESxWindowClass * klass)
     gtk_widget_class_bind_template_callback(widget_class, nesx_window_zoom_3);
     gtk_widget_class_bind_template_callback(widget_class, nesx_window_zoom_4);
 
+}
+
+void nesx_window_run(NESxWindow * self)
+{
+    while (self->open) {
+        while (g_main_context_iteration(NULL, false)) { }
+
+        if (self->running) {
+            NESx_Frame(self->nes);
+        }
+
+        gtk_gl_area_queue_render(self->glarea);
+    }
 }

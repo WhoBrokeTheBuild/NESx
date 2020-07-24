@@ -7,14 +7,16 @@
 #include "NESxWindow.h"
 #include "Resource.h"
 
-void _window_destroy(GtkApplicationWindow * window, bool * running)
-{
-    *running = false;
-}
 
 int main(int argc, char ** argv)
 {
     int status = 0;
+
+    nesx_t nes;
+
+    GError * error = NULL;
+    GtkApplication * app = NULL;
+    NESxWindow * window = NULL;
 
     cflags_t * flags = cflags_init();
 
@@ -44,26 +46,10 @@ int main(int argc, char ** argv)
         return 0;
     }
 
-    nesx_t nes;
-
-    GError * error = NULL;
-    GMainContext * mainCtx = NULL;
-    GtkApplication * app = NULL;
-    NESxWindow * window = NULL;
-
     nes.Verbosity = verbose->count;
     if (!NESx_Init(&nes)) {
         status = 1;
         goto cleanup;
-    }
-
-    if (flags->argc > 1) {
-        if (!NESx_ROM_Load(&nes, flags->argv[1])) {
-            status = 1;
-            goto cleanup;
-        }
-
-        NESx_ROM_PrintHeader(&nes);
     }
 
     app = gtk_application_new("com.stephenlw.nesx", G_APPLICATION_FLAGS_NONE);
@@ -80,29 +66,26 @@ int main(int argc, char ** argv)
     }
 
     window = NESX_WINDOW(nesx_window_new());
-    gtk_window_set_default_size(GTK_WINDOW(window), NESX_WIDTH * scale, NESX_HEIGHT * scale);
-    gtk_widget_show_all(GTK_WIDGET(window));
-
+    window->nes = &nes;
     nesx_window_set_scale(window, scale);
 
-    bool running = true;
-    g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(_window_destroy), &running);
+    if (flags->argc > 1) {
+        if (!NESx_ROM_Load(&nes, flags->argv[1])) {
+            status = 1;
+            goto cleanup;
+        }
 
-    while (running) {
-        while (g_main_context_iteration(mainCtx, false)) { }
-
-        
+        NESx_ROM_PrintHeader(&nes);
     }
+    
+    gtk_widget_show_all(GTK_WIDGET(window));
 
+    nesx_window_run(window);
 
 cleanup:
 
     if (error) {
         g_error_free(error);
-    }
-
-    if (mainCtx) {
-        g_main_context_release(mainCtx);
     }
 
     if (app) {

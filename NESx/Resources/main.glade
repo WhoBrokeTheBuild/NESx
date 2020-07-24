@@ -5,6 +5,7 @@
   <template class="NESxWindow" parent="GtkApplicationWindow">
     <property name="can_focus">False</property>
     <property name="title" translatable="yes">NESx</property>
+    <signal name="destroy" handler="nesx_window_term" swapped="no"/>
     <signal name="key-release-event" handler="nesx_window_on_key_release" swapped="no"/>
     <child>
       <placeholder/>
@@ -33,6 +34,7 @@
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">Open ROM</property>
+                        <signal name="activate" handler="nesx_window_open_rom" object="NESxWindow" swapped="yes"/>
                         <accelerator key="o" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                       </object>
                     </child>
