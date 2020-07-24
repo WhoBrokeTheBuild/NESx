@@ -19,14 +19,15 @@ struct _NESxWindow
 {
     GtkApplicationWindow parent;
 
-    bool fullscreen;
-
     GtkMenuBar * menubar;
-    int menubarHeight;
-
     GtkGLArea * glarea;
 
+    bool fullscreen;
+
     NESxDebugWindow * wndDebug;
+
+    unsigned shader;
+    unsigned vao;
 
 };
 

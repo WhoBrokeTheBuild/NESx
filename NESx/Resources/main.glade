@@ -172,6 +172,7 @@
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">About</property>
+                        <signal name="activate" handler="nesx_window_show_about" object="NESxWindow" swapped="yes"/>
                       </object>
                     </child>
                   </object>
@@ -192,6 +193,10 @@
             <property name="visible">True</property>
             <property name="app_paintable">True</property>
             <property name="can_focus">False</property>
+            <signal name="configure-event" handler="nesx_window_gl_configure" object="NESxWindow" swapped="yes"/>
+            <signal name="realize" handler="nesx_window_gl_init" object="NESxWindow" swapped="yes"/>
+            <signal name="render" handler="nesx_window_gl_render" object="NESxWindow" swapped="yes"/>
+            <signal name="unrealize" handler="nesx_window_gl_term" object="NESxWindow" swapped="yes"/>
           </object>
           <packing>
             <property name="expand">True</property>

@@ -9,4 +9,6 @@
                              (NESX_VERSION_MINOR << 8) |                       \
                              NESX_VERSION_PATCH);
 
+#define NESX_VERSION_STRING "@PROJECT_VERSION@"
+
 #endif // NESX_VERSION_H
