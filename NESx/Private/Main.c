@@ -2,7 +2,9 @@
 #include <NESx/NESx.h>
 #include <cflags.h>
 #include <gtk/gtk.h>
-#include <portaudio.h>
+
+// Removed while my patch is reviewed by the portaudio mailing list
+// #include <portaudio.h>
 
 #include "NESxWindow.h"
 #include "Resource.h"

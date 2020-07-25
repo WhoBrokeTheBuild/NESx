@@ -166,11 +166,11 @@ bool DebugRun(nesx_t * nes, int argc, char ** argv)
 
     // win.app = gtk_application_new("com.stephenlw.nesx", G_APPLICATION_FLAGS_NONE);
 
-    GMainContext * main = g_main_context_default();
-    if (!g_main_context_acquire(main)) {
-        fprintf(stderr, "failed to acquire main context\n");
-        return false;
-    }
+    // GMainContext * main = g_main_context_default();
+    // if (!g_main_context_acquire(main)) {
+    //     fprintf(stderr, "failed to acquire main context\n");
+    //     return false;
+    // }
 
     GError * error = NULL;
     // if (!g_application_register(G_APPLICATION(win.app), NULL, &error)) {
