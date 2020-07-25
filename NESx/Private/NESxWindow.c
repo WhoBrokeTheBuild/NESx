@@ -37,13 +37,13 @@ const float VERTS[] = {
 };
 
 const float UVS[] = {
-    0.0f, 0.0f,
+    1.0f, 1.0f,
     0.0f, 1.0f,
-    1.0f, 1.0f,
-
-    1.0f, 1.0f,
-    1.0f, 0.0f,
     0.0f, 0.0f,
+
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
 };
 
 G_DEFINE_TYPE(NESxWindow, nesx_window, GTK_TYPE_APPLICATION_WINDOW)
@@ -178,12 +178,7 @@ void nesx_window_gl_init(NESxWindow * self)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
     self->pixels = (uint8_t *)malloc(NESX_WIDTH * NESX_HEIGHT * 4);
-    for (int i = 0; i < NESX_WIDTH * NESX_HEIGHT * 4; i += 4) {
-        self->pixels[i + 0] = rand() % 0xFF;
-        self->pixels[i + 1] = rand() % 0xFF;
-        self->pixels[i + 2] = rand() % 0xFF;
-        self->pixels[i + 3] = 0xFF;
-    }
+    memset(self->pixels, 0xFF, NESX_WIDTH * NESX_HEIGHT * 4);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NESX_WIDTH, NESX_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, self->pixels);
 
@@ -238,16 +233,102 @@ void nesx_window_gl_configure(NESxWindow * self, GdkEventConfigure * event)
     glViewport(0, 0, event->width, event->height);
 }
 
+uint8_t system_palette[] = {
+     84,  84,  84,
+      0,  30, 116,
+      8,  16, 144,
+     48,   0, 136,
+     68,   0, 100,
+     92,   0,  48,
+     84,   4,   0,
+     60,  24,   0,
+     32,  42,   0,
+      8,  58,   0,
+      0,  64,   0,
+      0,  60,   0,
+      0,  50,  60,
+      0,   0,   0,
+    152, 150, 152,
+      8,  76, 196,
+     48,  50, 236,
+     92,  30, 228,
+    136,  20, 176,
+    160,  20, 100,
+    152,  34,  32,
+    120,  60,   0,
+     84,  90,   0,
+     40, 114,   0,
+      8, 124,   0,
+      0, 118,  40,
+      0, 102, 120,
+      0,   0,   0,
+    236, 238, 236,
+     76, 154, 236,
+    120, 124, 236,
+    176,  98, 236,
+    228,  84, 236,
+    236,  88, 180,
+    236, 106, 100,
+    212, 136,  32,
+    160, 170,   0,
+    116, 196,   0,
+     76, 208,  32,
+     56, 204, 108,
+     56, 180, 204,
+     60,  60,  60,
+    236, 238, 236,
+    168, 204, 236,
+    188, 188, 236,
+    212, 178, 236,
+    236, 174, 236,
+    236, 174, 212,
+    236, 180, 176,
+    228, 196, 144,
+    204, 210, 120,
+    180, 222, 120,
+    168, 226, 144,
+    152, 226, 180,
+    160, 214, 228,
+    160, 162, 160,
+};
+
 void nesx_window_gl_render(NESxWindow * self)
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    for (int i = 0; i < NESX_WIDTH * NESX_HEIGHT * 4; i += 4) {
-        self->pixels[i + 0] = rand() % 0xFF;
-        self->pixels[i + 1] = rand() % 0xFF;
-        self->pixels[i + 2] = rand() % 0xFF;
-        self->pixels[i + 3] = 0xFF;
+    nesx_ppu_t * ppu = &self->nes->PPU;
+
+    for (int y = 0; y < NESX_HEIGHT; ++y) {
+        for (int x = 0; x < NESX_WIDTH; ++x) {
+            int pixel     = ((y * NESX_WIDTH) + x) * 4;
+            // int tile      = (y * NESX_WIDTH / 8) + (x / 8);
+            // int attribute = (y * NESX_WIDTH / 32) + (x / 32);
+
+            // int quadrantShift = (((y / 16) % 2) * 4) + ((x / 16) % 2);
+
+            // uint8_t tileData = ppu->NameTables[0][tile];
+            // uint8_t patternData1 = ppu->PatternTables[tileData + (y % 8)];
+            // uint8_t patternData2 = ppu->PatternTables[tileData + 8 + (y % 8)];
+            // uint8_t patternData = patternData1 | patternData2;
+
+            // uint8_t attribData = ppu->NameTables[0][0x3C0 + attribute];
+            // int palette = (attribData >> quadrantShift) & 0b11;
+
+            // ppu->PaletteRAM[palette * 4];
+
+            self->pixels[pixel + 0] = system_palette[(y * 3) + 0];
+            self->pixels[pixel + 1] = system_palette[(y * 3) + 1];
+            self->pixels[pixel + 2] = system_palette[(y * 3) + 2];
+            self->pixels[pixel + 3] = 0xFF;
+        }
     }
+
+    // for (int i = 0; i < NESX_WIDTH * NESX_HEIGHT * 4; i += 4) {
+    //     self->pixels[i + 0] = rand() % 0xFF;
+    //     self->pixels[i + 1] = rand() % 0xFF;
+    //     self->pixels[i + 2] = rand() % 0xFF;
+    //     self->pixels[i + 3] = 0xFF;
+    // }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NESX_WIDTH, NESX_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, self->pixels);
 
