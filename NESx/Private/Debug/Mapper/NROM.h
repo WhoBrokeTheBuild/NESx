@@ -1,7 +1,7 @@
 #ifndef DEBUG_MAPPER_NROM_H
 #define DEBUG_MAPPER_NROM_H
 
-#include "Debug/DebugWindow.h"
+#include "Debug/NESxDebugger.h"
 
 // static void _Debug_NROM(debug_ctx_t * ctx)
 // {

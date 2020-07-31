@@ -78,6 +78,7 @@ int main(int argc, char ** argv)
         }
 
         NESx_ROM_PrintHeader(&nes);
+        window->running = true;
     }
     
     gtk_widget_show_all(GTK_WIDGET(window));

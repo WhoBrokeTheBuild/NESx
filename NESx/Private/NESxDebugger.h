@@ -1,23 +1,23 @@
-#ifndef NESX_DEBUG_WINDOW_H
-#define NESX_DEBUG_WINDOW_H
+#ifndef NESX_DEBUGGER_H
+#define NESX_DEBUGGER_H
 
 #include <NESx/NESx.h>
 #include <gtk/gtk.h>
 
 #include <stdbool.h>
 
-#include "MemoryView.h"
+// #include "MemoryView.h"
 
 G_DECLARE_FINAL_TYPE(
-    NESxDebugWindow,
-    nesx_debug_window,
-    NESX, DEBUG_WINDOW,
+    NESxDebugger,
+    nesx_debugger,
+    NESX, DEBUGGER,
     GtkWindow
 )
 
-typedef struct _NESxDebugWindow NESxDebugWindow;
+typedef struct _NESxDebugger NESxDebugger;
 
-struct _NESxDebugWindow
+struct _NESxDebugger
 {
     GtkWindow parent;
 
@@ -29,7 +29,7 @@ struct _NESxDebugWindow
 
     // Status
 
-    GtkLabel * lblCPUCycles;
+    GtkLabel * lblCPUCycle;
     GtkLabel * lblPPUCycle;
     GtkLabel * lblPPUScanline;
 
@@ -73,51 +73,10 @@ struct _NESxDebugWindow
     GtkCheckButton * chkRDY;
     GtkCheckButton * chkRES;
 
-    // Disassembly View
+    // Execution Log
 
 };
 
+GtkWidget * nesx_debugger_new(nesx_t * nes);
 
-typedef struct mem_region_select
-{
-    uint16_t address;
-    const char * name;
-
-} mem_region_select_t;
-
-typedef struct debug_ctx
-{
-    bool windowOpen;
-
-    bool running;
-
-    GtkApplication * app;
-    GtkApplicationWindow * window;
-
-
-
-    // Memory View
-
-    mem_region_select_t * memoryRegions;
-
-    GtkNotebook * nbkMemoryView;
-
-    GtkComboBoxText * cmbMemoryRegion;
-
-    DebugMemoryView * memCPU;
-    DebugMemoryView * memPPU;
-    DebugMemoryView * memCartridge;
-
-    // Cartridge Header
-
-    GtkLabel * lblPRGROMSize;
-    GtkLabel * lblCHRROMSize;
-    GtkLabel * lblPRGRAMSize;
-    GtkLabel * lblMapperNumber;
-    GtkLabel * lblMirrorType;
-
-} debug_ctx_t;
-
-bool DebugRun(nesx_t * nes, int argc, char ** argv);
-
-#endif // NESX_DEBUG_WINDOW_H
+#endif // NESX_DEBUGGER_H

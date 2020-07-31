@@ -88,6 +88,12 @@ bool NESx_ROM_Load(nesx_t * ctx, const char * filename)
     rom->CHRROM = (uint8_t *)malloc(rom->CHRROMSize);
     assert(rom->CHRROM);
 
+    bytesRead = fread(rom->CHRROM, 1, rom->CHRROMSize, fp);
+    if (bytesRead < rom->CHRROMSize) {
+        fprintf(stderr, "failed to read CHR ROM\n");
+        return false;
+    }
+
     if (hdr->PRGRAMBanks == 0) {
         hdr->PRGRAMBanks = 1;
     }
@@ -109,6 +115,7 @@ bool NESx_ROM_Load(nesx_t * ctx, const char * filename)
     ctx->CPU.PCL = NESx_MMU_CPU_ReadByte(ctx, 0xFFFE);
     ctx->CPU.PCH = NESx_MMU_CPU_ReadByte(ctx, 0xFFFF);
 
+    ctx->Running = true;
     return true;
 }
 

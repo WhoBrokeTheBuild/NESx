@@ -4,7 +4,7 @@
 #include <NESx/NESx.h>
 #include <gtk/gtk.h>
 
-#include "Debug/DebugWindow.h"
+#include "NESxDebugger.h"
 
 G_DECLARE_FINAL_TYPE(
     NESxWindow,
@@ -29,7 +29,7 @@ struct _NESxWindow
 
     bool fullscreen;
 
-    NESxDebugWindow * wndDebug;
+    NESxDebugger * debugger;
 
     unsigned shader;
     unsigned texture;

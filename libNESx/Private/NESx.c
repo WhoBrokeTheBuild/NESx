@@ -6,6 +6,9 @@
 
 bool NESx_Init(nesx_t * ctx)
 {
+    // Off until a ROM is loaded
+    ctx->Running = false;
+
     MOS6502_Init(&ctx->CPU);
     ctx->CPU.BCDEnabled = false;
 
@@ -51,20 +54,24 @@ void NESx_Tick(nesx_t * ctx)
 
 void NESx_Step(nesx_t * ctx)
 {
-    do {
-        NESx_Tick(ctx);
+    if (ctx->Running) {
+        do {
+            NESx_Tick(ctx);
+        }
+        while (!ctx->CPU.SYNC);   
     }
-    while (!ctx->CPU.SYNC);
 }
 
 void NESx_Frame(nesx_t * ctx)
 {
-    int scanline;
-    do {
-        scanline = ctx->PPU.Scanline;
-        NESx_Tick(ctx);
+    if (ctx->Running) {
+        int scanline;
+        do {
+            scanline = ctx->PPU.Scanline;
+            NESx_Tick(ctx);
+        }
+        while (scanline <= ctx->PPU.Scanline);
     }
-    while (scanline <= ctx->PPU.Scanline);
 }
 
 // clang-format on
