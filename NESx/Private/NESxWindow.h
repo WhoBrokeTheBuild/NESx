@@ -4,7 +4,9 @@
 #include <NESx/NESx.h>
 #include <gtk/gtk.h>
 
-#include "Debug/DebugWindow.h"
+#include "NESxDebugger.h"
+
+typedef struct _NESxWindow NESxWindow;
 
 G_DECLARE_FINAL_TYPE(
     NESxWindow,
@@ -12,8 +14,6 @@ G_DECLARE_FINAL_TYPE(
     NESX, WINDOW,
     GtkApplicationWindow
 )
-
-typedef struct _NESxWindow NESxWindow;
 
 struct _NESxWindow
 {
@@ -29,7 +29,7 @@ struct _NESxWindow
 
     bool fullscreen;
 
-    NESxDebugWindow * wndDebug;
+    NESxDebugger * debugger;
 
     unsigned shader;
     unsigned texture;
@@ -39,7 +39,7 @@ struct _NESxWindow
 
 };
 
-GtkWidget * nesx_window_new();
+GtkWidget * nesx_window_new(nesx_t * nes);
 
 void nesx_window_set_scale(NESxWindow * self, int scale);
 

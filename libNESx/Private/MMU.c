@@ -75,12 +75,12 @@ uint8_t NESx_MMU_PPU_ReadByte(nesx_t * ctx, uint16_t address)
     case 0x2:
     case 0x3:
         if (address >= 0x3F00) {
-            return ppu
-                ->PaletteRAM[(address - 0x3F00) % sizeof(ppu->PaletteRAM)];
+            return ppu->PaletteRAM[(address - 0x3F00) % sizeof(ppu->PaletteRAM)];
         }
-        index = (address - 0x2000) / 0x400;
-        address = (address - 0x2000) % 0x400;
-        return ppu->NameTables[index][address];
+
+        address -= 0x2000;
+        address %= 0x1000;
+        return ppu->NameTables[address / 0x400][address % 0x400];
     default: assert(false);
     };
 

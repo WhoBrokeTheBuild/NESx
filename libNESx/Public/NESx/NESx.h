@@ -15,6 +15,8 @@
 
 typedef struct nesx
 {
+    bool Running;
+    
     mos6502_t CPU;
 
     nesx_ppu_t PPU;

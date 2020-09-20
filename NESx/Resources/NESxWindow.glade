@@ -155,6 +155,16 @@
                         </child>
                       </object>
                     </child>
+                    <child>
+                      <object class="GtkMenuItem">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Show Debugger</property>
+                        <property name="use_underline">True</property>
+                        <signal name="activate" handler="nesx_window_show_debugger" object="NESxWindow" swapped="yes"/>
+                        <accelerator key="d" signal="activate" modifiers="GDK_CONTROL_MASK"/>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>

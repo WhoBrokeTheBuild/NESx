@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#define MOS6502_DISASSEMBLY_LENGTH 64
+
 typedef struct mos6502
 {
     // Address Bus
@@ -82,6 +84,10 @@ typedef struct mos6502
     uint8_t NMI; // Non-Maskable Interrupt Requested
     uint8_t RDY; // "freeze execution at next read cycle"
     uint8_t RES; // Reset Requested
+
+    bool GenerateDisassembly;
+    char Disassembly[MOS6502_DISASSEMBLY_LENGTH];
+    int DisasemblyIndex;
 
     uint64_t Cycles;
 

@@ -54,6 +54,8 @@ int main(int argc, char ** argv)
         goto cleanup;
     }
 
+    nes.CPU.GenerateDisassembly = true;
+
     app = gtk_application_new("com.stephenlw.nesx", G_APPLICATION_FLAGS_NONE);
     if (!app) {
         fprintf(stderr, "failed to create GTK application\n");
@@ -67,8 +69,7 @@ int main(int argc, char ** argv)
         goto cleanup;
     }
 
-    window = NESX_WINDOW(nesx_window_new());
-    window->nes = &nes;
+    window = NESX_WINDOW(nesx_window_new(&nes));
     nesx_window_set_scale(window, scale);
 
     if (flags->argc > 1) {

@@ -27,31 +27,32 @@ const char * FRAGMENT_SHADER =
 "}                                                      \n";
 
 const float VERTS[] = {
-    -1.0f, -1.0f, 0.0f,
-     1.0f, -1.0f, 0.0f,
-     1.0f,  1.0f, 0.0f,
-    
-     1.0f,  1.0f, 0.0f,
     -1.0f,  1.0f, 0.0f,
-    -1.0f, -1.0f, 0.0f,     
+     1.0f,  1.0f, 0.0f,
+     1.0f, -1.0f, 0.0f,
+    
+     1.0f, -1.0f, 0.0f,
+    -1.0f, -1.0f, 0.0f,
+    -1.0f,  1.0f, 0.0f,     
 };
 
 const float UVS[] = {
-    1.0f, 1.0f,
-    0.0f, 1.0f,
-    0.0f, 0.0f,
-
     0.0f, 0.0f,
     1.0f, 0.0f,
     1.0f, 1.0f,
+
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+    0.0f, 0.0f,
 };
 
 G_DEFINE_TYPE(NESxWindow, nesx_window, GTK_TYPE_APPLICATION_WINDOW)
 
-GtkWidget * nesx_window_new()
+GtkWidget * nesx_window_new(nesx_t * nes)
 {
     NESxWindow * window;
     window = NESX_WINDOW(g_object_new(nesx_window_get_type(), NULL));
+    window->nes = nes;
     return GTK_WIDGET(window);
 }
 
@@ -62,12 +63,16 @@ void nesx_window_init(NESxWindow * self)
     self->open = true;
     self->running = false;
     self->fullscreen = false;
+    self->debugger = NULL;
 }
 
 void nesx_window_term(NESxWindow * self)
 {
     self->open = false;
     self->running = false;
+    if (self->debugger) {
+        gtk_widget_destroy(GTK_WIDGET(self->debugger));
+    }
 }
 
 void nesx_window_set_scale(NESxWindow * self, int scale)
@@ -116,12 +121,27 @@ void nesx_window_open_rom(NESxWindow * self)
     if (result == GTK_RESPONSE_ACCEPT) {
         char * filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         if (NESx_ROM_Load(self->nes, filename)) {
-            self->running = true;
+            if (!self->debugger) {
+                self->running = true;
+            }
+            else {
+                nesx_debugger_update(self->debugger);
+            }
         }
         g_free(filename);
     }
 
     gtk_widget_destroy(dialog);
+}
+
+void nesx_window_show_debugger(NESxWindow * self)
+{
+    if (!self->debugger) {
+        self->debugger = NESX_DEBUGGER(nesx_debugger_new(self->nes, &self->running));
+    }
+
+    gtk_widget_show_all(GTK_WIDGET(self->debugger));
+    nesx_debugger_update(self->debugger);
 }
 
 void nesx_window_show_about(NESxWindow * self)
@@ -298,30 +318,49 @@ void nesx_window_gl_render(NESxWindow * self)
 
     nesx_ppu_t * ppu = &self->nes->PPU;
 
-    for (int y = 0; y < NESX_HEIGHT; ++y) {
-        for (int x = 0; x < NESX_WIDTH; ++x) {
-            int pixel     = ((y * NESX_WIDTH) + x) * 4;
-            // int tile      = (y * NESX_WIDTH / 8) + (x / 8);
-            // int attribute = (y * NESX_WIDTH / 32) + (x / 32);
+    // for (int y = 0; y < NESX_HEIGHT; ++y) {
+    //     for (int x = 0; x < NESX_WIDTH; ++x) {
+    //         int pixel     = ((y * NESX_WIDTH) + x) * 4;
+    //         // int tile      = (y * NESX_WIDTH / 8) + (x / 8);
+    //         // int attribute = (y * NESX_WIDTH / 32) + (x / 32);
+    //         int pattern = ((y / 8) * NESX_WIDTH * 16) + ((x / 8) * 16) + y;
+    //         int patternIndex = 7 - (x % 8);
 
-            // int quadrantShift = (((y / 16) % 2) * 4) + ((x / 16) % 2);
+    //         if (pattern >= 0x2000) {
+    //             break;
+    //         }
+    //         // pattern %= 0x2000;
 
-            // uint8_t tileData = ppu->NameTables[0][tile];
-            // uint8_t patternData1 = ppu->PatternTables[tileData + (y % 8)];
-            // uint8_t patternData2 = ppu->PatternTables[tileData + 8 + (y % 8)];
-            // uint8_t patternData = patternData1 | patternData2;
+    //         // int quadrantShift = (((y / 16) % 2) * 4) + ((x / 16) % 2);
 
-            // uint8_t attribData = ppu->NameTables[0][0x3C0 + attribute];
-            // int palette = (attribData >> quadrantShift) & 0b11;
+    //         // uint8_t tileData = ppu->NameTables[0][tile];
+    //         // printf("%02x ", tileData);
+    //         uint8_t patternData1 = (ppu->PatternTables[pattern] >> patternIndex) & 1;
+    //         uint8_t patternData2 = (ppu->PatternTables[pattern + 8] >> patternIndex) & 1;
+    //         uint8_t patternData = patternData1 | (patternData2 << 1);
 
-            // ppu->PaletteRAM[palette * 4];
+    //         // printf("%d:%d:%d\n", pattern, pattern + 8, patternIndex);
 
-            self->pixels[pixel + 0] = system_palette[(y * 3) + 0];
-            self->pixels[pixel + 1] = system_palette[(y * 3) + 1];
-            self->pixels[pixel + 2] = system_palette[(y * 3) + 2];
-            self->pixels[pixel + 3] = 0xFF;
-        }
-    }
+    //         // uint8_t attribData = ppu->NameTables[0][0x3C0 + attribute];
+    //         // int palette = (attribData >> quadrantShift) & 0b11;
+
+    //         // ppu->PaletteRAM[palette * 4];
+
+    //         uint8_t colors[] = {
+    //             0x00,
+    //             0x55,
+    //             0xAA,
+    //             0xFF,
+    //         };
+
+    //         self->pixels[pixel + 0] = colors[patternData];
+    //         self->pixels[pixel + 1] = colors[patternData];
+    //         self->pixels[pixel + 2] = colors[patternData];
+    //         self->pixels[pixel + 3] = 0xFF;
+    //     }
+    //     // printf("\n");
+    //     // exit(1);
+    // }
 
     // for (int i = 0; i < NESX_WIDTH * NESX_HEIGHT * 4; i += 4) {
     //     self->pixels[i + 0] = rand() % 0xFF;
@@ -359,33 +398,34 @@ void nesx_window_zoom_4(NESxWindow * self)
 
 void nesx_window_class_init(NESxWindowClass * klass)
 {
-    GtkWidgetClass * widget_class = GTK_WIDGET_CLASS(klass);
+    GtkWidgetClass * wc = GTK_WIDGET_CLASS(klass);
 
     GError * error = NULL;
-    GBytes * data = g_resource_lookup_data(nesx_get_resource(), "/main.glade", 0, &error);
+    GBytes * data = g_resource_lookup_data(nesx_get_resource(), "/NESxWindow.glade", 0, &error);
     if (!data) {
-        fprintf(stderr, "failed to load main.glade: %s\n", error->message);
+        fprintf(stderr, "failed to load NESxWindow.glade: %s\n", error->message);
         g_error_free(error);
     }
 
-    gtk_widget_class_set_template(widget_class, data);
+    gtk_widget_class_set_template(wc, data);
 
-    // gtk_widget_class_bind_template_child(widget_class, NESxWindow, menubar);
-    gtk_widget_class_bind_template_child(widget_class, NESxWindow, glarea);
+    // gtk_widget_class_bind_template_child(wc, NESxWindow, menubar);
+    gtk_widget_class_bind_template_child(wc, NESxWindow, glarea);
 
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_term);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_open_rom);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_show_about);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_on_key_release);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_toggle_fullscreen);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_gl_init);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_gl_term);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_gl_configure);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_gl_render);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_zoom_1);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_zoom_2);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_zoom_3);
-    gtk_widget_class_bind_template_callback(widget_class, nesx_window_zoom_4);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_term);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_open_rom);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_show_debugger);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_show_about);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_on_key_release);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_toggle_fullscreen);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_gl_init);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_gl_term);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_gl_configure);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_gl_render);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_zoom_1);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_zoom_2);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_zoom_3);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_zoom_4);
 
 }
 
