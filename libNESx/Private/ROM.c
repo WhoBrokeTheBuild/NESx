@@ -112,9 +112,6 @@ bool NESx_ROM_Load(nesx_t * ctx, const char * filename)
         return false;
     };
 
-    ctx->CPU.PCL = NESx_MMU_CPU_ReadByte(ctx, 0xFFFE);
-    ctx->CPU.PCH = NESx_MMU_CPU_ReadByte(ctx, 0xFFFF);
-
     ctx->Running = true;
     return true;
 }

@@ -3,9 +3,13 @@
 // #include "Mapper/NROM.h"
 #include "Resource.h"
 
+#include <time.h>
+#include <errno.h>
+#include <string.h>
+
 #define MARGIN 8
-#define NESX_EXECUTION_LOG_HEADER "INSTRUCTION      A  X  Y  S  PC   P      CYCLE          "
-#define NESX_EXECUTION_LOG_FORMAT "%-16s %02X %02X %02X %02X %04X %c%c%c%c%c%c %lu\n"
+#define NESX_EXECUTION_LOG_HEADER "INSTRUCTION      A  X  Y  S  PC   P       CYCLE          "
+#define NESX_EXECUTION_LOG_FORMAT "%-16s %02X %02X %02X %02X %04X %c%c%c%c%c%c%c %lu\n"
 
 // mem_region_select_t CPU_MEMORY_SECTIONS[] = {
 //     { 0x0000, "0000: Internal RAM" },
@@ -86,6 +90,9 @@ void nesx_debugger_class_init(NESxDebuggerClass * klass)
 
     gtk_widget_class_set_template(wc, data);
 
+    gtk_widget_class_bind_template_callback(wc, nesx_debugger_apply);
+    gtk_widget_class_bind_template_callback(wc, nesx_debugger_save_execution_log);
+
     // Status
     gtk_widget_class_bind_template_child(wc, NESxDebugger, lblCPUCycle);
     gtk_widget_class_bind_template_child(wc, NESxDebugger, lblPPUCycle);
@@ -128,6 +135,11 @@ void nesx_debugger_class_init(NESxDebuggerClass * klass)
     gtk_widget_class_bind_template_child(wc, NESxDebugger, chkRDY);
     gtk_widget_class_bind_template_child(wc, NESxDebugger, chkRES);
 
+    // PPU Internals
+    gtk_widget_class_bind_template_child(wc, NESxDebugger, entScanline);
+    gtk_widget_class_bind_template_child(wc, NESxDebugger, chkVBlank);
+
+
     // Execution Log
     gtk_widget_class_bind_template_child(wc, NESxDebugger, txtExecutionLogHeader);
     gtk_widget_class_bind_template_child(wc, NESxDebugger, txtExecutionLog);
@@ -136,19 +148,19 @@ void nesx_debugger_class_init(NESxDebuggerClass * klass)
 void nesx_debugger_tick(NESxDebugger * self)
 {
     NESx_Tick(self->nes);
-    nesx_debugger_update(self);
+    nesx_debugger_display(self);
 }
 
 void nesx_debugger_step(NESxDebugger * self)
 {
     NESx_Step(self->nes);
-    nesx_debugger_update(self);
+    nesx_debugger_display(self);
 }
 
 void nesx_debugger_frame(NESxDebugger * self)
 {
     NESx_Frame(self->nes);
-    nesx_debugger_update(self);
+    nesx_debugger_display(self);
 }
 
 void nesx_debugger_run(NESxDebugger * self)
@@ -159,19 +171,77 @@ void nesx_debugger_run(NESxDebugger * self)
 void nesx_debugger_stop(NESxDebugger * self)
 {
     *(self->running) = false;
-    nesx_debugger_update(self);
+    nesx_debugger_display(self);
 }
 
-void nesx_debugger_update(NESxDebugger * self)
+void nesx_debugger_save_execution_log(NESxDebugger * self)
 {
-    nesx_debugger_update_status(self);
-    nesx_debugger_update_registers(self);
-    nesx_debugger_update_status_registers(self);
-    nesx_debugger_update_cpu_internals(self);
+    GtkWidget * dialog = gtk_file_chooser_dialog_new(
+        "Save Execution Log", 
+        GTK_WINDOW(self),
+        GTK_FILE_CHOOSER_ACTION_SAVE,
+        "Cancel", GTK_RESPONSE_CANCEL,
+        "Save", GTK_RESPONSE_ACCEPT,
+        NULL);
+
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "%d-%d-%d %02d:%02d:%02d.log",
+        tm.tm_year + 1900, tm.tm_mon, tm.tm_mday, 
+        tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), buffer);
+
+    GtkFileFilter * filterLogs = gtk_file_filter_new();
+    gtk_file_filter_set_name(filterLogs, "Log Files (*.log)");
+    gtk_file_filter_add_pattern(filterLogs, "*.log");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filterLogs);
+
+    GtkFileFilter * filterAll = gtk_file_filter_new();
+    gtk_file_filter_set_name(filterAll, "All Files");
+    gtk_file_filter_add_pattern(filterAll, "*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filterAll);
+    
+    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (result == GTK_RESPONSE_ACCEPT) {
+        char * filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        
+        FILE * fp = fopen(filename, "wt");
+        if (!fp) {
+            fprintf(stderr, "Failed to open %s", strerror(errno));
+        }
+        else {
+            GtkTextBuffer * textBuffer = gtk_text_view_get_buffer(self->txtExecutionLog);
+
+            GtkTextIter start, end;
+            gtk_text_buffer_get_bounds(textBuffer, &start, &end);
+            gchar * text = gtk_text_buffer_get_text(textBuffer, &start, &end, false);
+            
+            if (text) {
+                fwrite(text, 1, strlen(text), fp);
+            }
+            fclose(fp);
+        }
+
+        g_free(filename);
+    }
+
+    gtk_widget_destroy(dialog);
+}
+
+void nesx_debugger_display(NESxDebugger * self)
+{
+    nesx_debugger_display_status(self);
+    nesx_debugger_display_registers(self);
+    nesx_debugger_display_status_registers(self);
+    nesx_debugger_display_cpu_internals(self);
+    nesx_debugger_display_ppu_internals(self);
     nesx_debugger_add_log_entry(self);
 }
 
-void nesx_debugger_update_status(NESxDebugger * self)
+void nesx_debugger_display_status(NESxDebugger * self)
 {
     char buffer[32];
 
@@ -185,7 +255,7 @@ void nesx_debugger_update_status(NESxDebugger * self)
     gtk_label_set_text(self->lblPPUScanline, buffer);
 }
 
-void nesx_debugger_update_registers(NESxDebugger * self)
+void nesx_debugger_display_registers(NESxDebugger * self)
 {
     char buffer[5];
 
@@ -205,21 +275,19 @@ void nesx_debugger_update_registers(NESxDebugger * self)
     gtk_entry_set_text(self->entPC, buffer);
 }
 
-void nesx_debugger_update_status_registers(NESxDebugger * self)
+void nesx_debugger_display_status_registers(NESxDebugger * self)
 {
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFN), self->cpu->FN);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFV), self->cpu->FV);
-    // gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFU),
-    // self->cpu->FU);
-    // gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFB),
-    // self->cpu->FB);
+    // gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFU), self->cpu->FU);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFD), self->cpu->FD);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFB), self->cpu->FB);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFI), self->cpu->FI);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFZ), self->cpu->FZ);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkFN), self->cpu->FC);
 }
 
-void nesx_debugger_update_cpu_internals(NESxDebugger * self)
+void nesx_debugger_display_cpu_internals(NESxDebugger * self)
 {
     char buffer[5];
 
@@ -243,6 +311,103 @@ void nesx_debugger_update_cpu_internals(NESxDebugger * self)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkRES), self->cpu->RES);
 }
 
+void nesx_debugger_display_ppu_internals(NESxDebugger * self)
+{
+    char buffer[4];
+
+    snprintf(buffer, sizeof(buffer), "%d", self->ppu->Scanline);
+    gtk_entry_set_text(self->entScanline, buffer);
+
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(self->chkVBlank), self->ppu->VBlank);
+}
+
+void nesx_debugger_apply(NESxDebugger * self)
+{
+    nesx_debugger_apply_registers(self);
+    nesx_debugger_apply_status_registers(self);
+    nesx_debugger_apply_cpu_internals(self);
+    nesx_debugger_apply_ppu_internals(self);
+
+    nesx_debugger_display(self);
+}
+
+void nesx_debugger_apply_registers(NESxDebugger * self)
+{
+    int value;
+
+    if (sscanf(gtk_entry_get_text(self->entA), "%2X", &value) == 1) {
+        self->cpu->A = value;
+    }
+
+    if (sscanf(gtk_entry_get_text(self->entX), "%2X", &value) == 1) {
+        self->cpu->X = value;
+    }
+
+    if (sscanf(gtk_entry_get_text(self->entY), "%2X", &value) == 1) {
+        self->cpu->Y = value;
+    }
+
+    if (sscanf(gtk_entry_get_text(self->entS), "%2X", &value) == 1) {
+        self->cpu->S = value;
+    }
+
+    if (sscanf(gtk_entry_get_text(self->entPC), "%4X", &value) == 1) {
+        self->cpu->PC = value;
+    }
+
+}
+
+void nesx_debugger_apply_status_registers(NESxDebugger * self)
+{
+    self->cpu->FN = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFN));
+    self->cpu->FV = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFV));
+    // self->cpu->FU = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFU));
+    self->cpu->FD = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFD));
+    self->cpu->FB = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFB));
+    self->cpu->FI = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFI));
+    self->cpu->FZ = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFZ));
+    self->cpu->FC = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkFC));
+}
+
+void nesx_debugger_apply_cpu_internals(NESxDebugger * self)
+{
+    int value;
+    
+    if (sscanf(gtk_entry_get_text(self->entAB), "%4X", &value) == 1) {
+        self->cpu->AB = value;
+    }
+    
+    if (sscanf(gtk_entry_get_text(self->entAD), "%4X", &value) == 1) {
+        self->cpu->AD = value;
+    }
+    
+    if (sscanf(gtk_entry_get_text(self->entIR), "%2X", &value) == 1) {
+        self->cpu->IR = value;
+    }
+    
+    if (sscanf(gtk_entry_get_text(self->entDB), "%2X", &value) == 1) {
+        self->cpu->DB = value;
+    }
+
+    self->cpu->RW = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkRW));
+    self->cpu->SYNC = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkSYNC));
+    self->cpu->IRQ = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkIRQ));
+    self->cpu->NMI = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkNMI));
+    self->cpu->RDY = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkRDY));
+    self->cpu->RES = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkRES));
+}
+
+void nesx_debugger_apply_ppu_internals(NESxDebugger * self)
+{
+    int value;
+    
+    if (sscanf(gtk_entry_get_text(self->entScanline), "%3d", &value) == 1) {
+        self->ppu->Scanline = CLAMP(value, 0, 260);
+    }
+
+    self->ppu->VBlank = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkVBlank));
+}
+
 void nesx_debugger_add_log_entry(NESxDebugger * self)
 {
     GtkTextBuffer * gtkBuffer = gtk_text_view_get_buffer(self->txtExecutionLog);
@@ -250,9 +415,12 @@ void nesx_debugger_add_log_entry(NESxDebugger * self)
 
     mos6502_t * cpu = &self->nes->CPU;
 
+    char disasm[17];
+    snprintf(disasm, sizeof(disasm), cpu->DisasmFormat, cpu->DisasmData1, cpu->DisasmData2);
+
     char buffer[256];
     snprintf(buffer, sizeof(buffer), NESX_EXECUTION_LOG_FORMAT,
-        cpu->Disassembly, 
+        disasm, 
         cpu->A, 
         cpu->X, 
         cpu->Y, 
@@ -261,6 +429,7 @@ void nesx_debugger_add_log_entry(NESxDebugger * self)
         (cpu->FN ? 'N' : 'n'),
         (cpu->FV ? 'V' : 'v'),
         (cpu->FD ? 'D' : 'd'),
+        (cpu->FB ? 'B' : 'b'),
         (cpu->FI ? 'I' : 'i'),
         (cpu->FZ ? 'Z' : 'z'),
         (cpu->FC ? 'C' : 'c'),

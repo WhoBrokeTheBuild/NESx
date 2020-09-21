@@ -116,7 +116,6 @@ void nesx_window_open_rom(NESxWindow * self)
     gtk_file_filter_add_pattern(filterAll, "*");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filterAll);
     
-    
     gint result = gtk_dialog_run(GTK_DIALOG(dialog));
     if (result == GTK_RESPONSE_ACCEPT) {
         char * filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
@@ -125,13 +124,21 @@ void nesx_window_open_rom(NESxWindow * self)
                 self->running = true;
             }
             else {
-                nesx_debugger_update(self->debugger);
+                nesx_debugger_display(self->debugger);
             }
         }
         g_free(filename);
     }
 
     gtk_widget_destroy(dialog);
+}
+
+void nesx_window_play_pause(NESxWindow * self) {
+    self->running = !self->running;
+}
+
+void nesx_window_reset(NESxWindow * self) {
+
 }
 
 void nesx_window_show_debugger(NESxWindow * self)
@@ -141,7 +148,7 @@ void nesx_window_show_debugger(NESxWindow * self)
     }
 
     gtk_widget_show_all(GTK_WIDGET(self->debugger));
-    nesx_debugger_update(self->debugger);
+    nesx_debugger_display(self->debugger);
 }
 
 void nesx_window_show_about(NESxWindow * self)
@@ -316,7 +323,7 @@ void nesx_window_gl_render(NESxWindow * self)
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    nesx_ppu_t * ppu = &self->nes->PPU;
+    // nesx_ppu_t * ppu = &self->nes->PPU;
 
     // for (int y = 0; y < NESX_HEIGHT; ++y) {
     //     for (int x = 0; x < NESX_WIDTH; ++x) {
@@ -414,6 +421,8 @@ void nesx_window_class_init(NESxWindowClass * klass)
 
     gtk_widget_class_bind_template_callback(wc, nesx_window_term);
     gtk_widget_class_bind_template_callback(wc, nesx_window_open_rom);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_play_pause);
+    gtk_widget_class_bind_template_callback(wc, nesx_window_reset);
     gtk_widget_class_bind_template_callback(wc, nesx_window_show_debugger);
     gtk_widget_class_bind_template_callback(wc, nesx_window_show_about);
     gtk_widget_class_bind_template_callback(wc, nesx_window_on_key_release);
@@ -435,7 +444,19 @@ void nesx_window_run(NESxWindow * self)
         while (g_main_context_iteration(NULL, false)) { }
 
         if (self->running) {
-            NESx_Frame(self->nes);
+            if (self->debugger) {
+                // TODO: Cleanup
+                int scanline;
+                do {
+                    scanline = self->nes->PPU.Scanline;
+                    NESx_Step(self->nes);
+                    nesx_debugger_add_log_entry(self->debugger);
+                }
+                while (scanline <= self->nes->PPU.Scanline);
+            }
+            else {
+                NESx_Frame(self->nes);
+            }
         }
 
         gtk_gl_area_queue_render(self->glarea);

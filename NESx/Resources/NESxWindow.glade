@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.22.1 -->
+<!-- Generated with glade 3.22.2 -->
 <interface>
   <requires lib="gtk+" version="3.10"/>
   <template class="NESxWindow" parent="GtkApplicationWindow">
@@ -7,7 +7,7 @@
     <property name="title" translatable="yes">NESx</property>
     <signal name="destroy" handler="nesx_window_term" swapped="no"/>
     <signal name="key-release-event" handler="nesx_window_on_key_release" swapped="no"/>
-    <child>
+    <child type="titlebar">
       <placeholder/>
     </child>
     <child>
@@ -36,6 +36,26 @@
                         <property name="label" translatable="yes">Open ROM</property>
                         <signal name="activate" handler="nesx_window_open_rom" object="NESxWindow" swapped="yes"/>
                         <accelerator key="o" signal="activate" modifiers="GDK_CONTROL_MASK"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Play/Pause</property>
+                        <property name="use_underline">True</property>
+                        <signal name="activate" handler="nesx_window_play_pause" object="NESxWindow" swapped="yes"/>
+                        <accelerator key="Return" signal="activate" modifiers="GDK_CONTROL_MASK"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Reset</property>
+                        <property name="use_underline">True</property>
+                        <signal name="activate" handler="nesx_window_reset" object="NESxWindow" swapped="yes"/>
+                        <accelerator key="Return" signal="activate" modifiers="GDK_SHIFT_MASK | GDK_CONTROL_MASK"/>
                       </object>
                     </child>
                     <child>

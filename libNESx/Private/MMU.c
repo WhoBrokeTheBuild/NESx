@@ -26,6 +26,7 @@ void NESx_MMU_Term(nesx_t * ctx)
 uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
 {
     nesx_mmu_t * mmu = &ctx->MMU;
+    nesx_ppu_t * ppu = &ctx->PPU;
 
     switch (address >> 12) {
     case 0x0:
@@ -34,7 +35,10 @@ uint8_t NESx_MMU_CPU_ReadByte(nesx_t * ctx, uint16_t address)
         break;
     case 0x2:
     case 0x3:
-        // PPU
+        switch (address) {
+        case 0x2002:
+            return ppu->Status;
+        }
         break;
     case 0x4:
         if (address <= 0x4017) {

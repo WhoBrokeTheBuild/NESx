@@ -72,6 +72,7 @@ typedef struct mos6502
     bool FZ; // Zero
     bool FI; // Interrupt
     bool FD; // Decimal
+    bool FB; // BRK
     bool FV; // Overflow
     bool FN; // Negative
 
@@ -85,9 +86,16 @@ typedef struct mos6502
     uint8_t RDY; // "freeze execution at next read cycle"
     uint8_t RES; // Reset Requested
 
-    bool GenerateDisassembly;
-    char Disassembly[MOS6502_DISASSEMBLY_LENGTH];
-    int DisasemblyIndex;
+    uint8_t IRQStates;
+    uint8_t NMIStates;
+
+    bool BRK_IRQ;
+    bool BRK_NMI;
+    bool BRK_RESET;
+
+    const char * DisasmFormat;
+    int DisasmData1;
+    int DisasmData2;
 
     uint64_t Cycles;
 

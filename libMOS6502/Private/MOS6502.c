@@ -61,6 +61,7 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
     cpu->FZ = (((VALUE) & _MASK_FZ) > 0);                                      \
     cpu->FI = (((VALUE) & _MASK_FI) > 0);                                      \
     cpu->FD = (((VALUE) & _MASK_FD) > 0);                                      \
+    cpu->FB = false;                                                           \
     cpu->FV = (((VALUE) & _MASK_FV) > 0);                                      \
     cpu->FN = (((VALUE) & _MASK_FN) > 0)
 
@@ -79,7 +80,8 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
     cpu->AB = cpu->PC++
 
 #define _ZPG_1()                                                               \
-    cpu->AB = cpu->DB
+    cpu->AB = cpu->DB;                                                         \
+    cpu->DisasmData1 = cpu->DB
 
 // zeropage,X
 #define _ZPG_2_X()                                                             \
@@ -95,11 +97,13 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
 
 #define _ABS_1()                                                               \
     cpu->AB = cpu->PC++;                                                       \
-    cpu->ADL = cpu->DB
+    cpu->ADL = cpu->DB;                                                         \
+    cpu->DisasmData2 = cpu->DB
 
 #define _ABS_2()                                                               \
     cpu->ADH = cpu->DB;                                                        \
-    cpu->AB = cpu->AD
+    cpu->AB = cpu->AD;                                                         \
+    cpu->DisasmData1 = cpu->DB
 
 // absolute,X
 #define _ABS_2_X()                                                             \
@@ -130,7 +134,8 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
     cpu->AB = cpu->PC++
 
 #define _IND_1()                                                               \
-    cpu->AB = cpu->DB
+    cpu->AB = cpu->DB;                                                         \
+    cpu->DisasmData1 = cpu->DB
 
 // (indirect,X)
 #define _IND_2_X()                                                             \
@@ -138,11 +143,13 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
 
 #define _IND_3_X()                                                             \
     ++cpu->ABL;                                                                \
-    cpu->ADL = cpu->DB
+    cpu->ADL = cpu->DB;                                                        \
+    cpu->DisasmData2 = cpu->DB
 
 #define _IND_4_X()                                                             \
     cpu->ADH = cpu->DB;                                                        \
-    cpu->AB = cpu->AD
+    cpu->AB = cpu->AD;                                                         \
+    cpu->DisasmData1 = cpu->DB
 
 // (indirect),Y
 #define _IND_2_Y()                                                             \
@@ -169,6 +176,7 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
 #define _BRANCH_1(FAIL_TEST)                                                   \
     cpu->AB = cpu->PC;                                                         \
     cpu->AD = cpu->PC + (int8_t)cpu->DB;                                       \
+    cpu->DisasmData1 = (int8_t)cpu->DB;                                        \
     if (FAIL_TEST) {                                                           \
         _FETCH();                                                              \
     }
@@ -179,8 +187,8 @@ https://github.com/floooh/chips/blob/master/chips/m6502.h
     /* Check for page boundary */                                              \
     if (cpu->ADH == cpu->PCH) {                                                \
         cpu->PC = cpu->AD;                                                     \
-        /* irq */                                                              \
-        /* nmi */                                                              \
+        cpu->IRQStates >>= 1;                                                  \
+        cpu->NMIStates >>= 1;                                                  \
         _FETCH();                                                              \
     }
 
@@ -302,184 +310,221 @@ void MOS6502_Init(mos6502_t * cpu)
     cpu->RDY = 0;
     cpu->RES = 1;
 
+    cpu->IRQStates = 0;
+    cpu->NMIStates = 0;
+
+    cpu->BRK_IRQ = false;
+    cpu->BRK_NMI = false;
+    cpu->BRK_RESET = false;
+
     cpu->BCDEnabled = true;
     cpu->Cycles = 0;
 
-    cpu->GenerateDisassembly = false;
-    cpu->Disassembly[0] = '\0';
-    cpu->DisasemblyIndex = 0;
+    cpu->DisasmFormat = NULL;
+    cpu->DisasmData1 = 0;
+    cpu->DisasmData2 = 0;
 }
 
 void MOS6502_Tick(mos6502_t * cpu)
 {
-    static const char * INSTRUCTION_NAMES[] = {
+    static const char * INSTRUCTION_FORMATS[] = {
         [0x00] = "BRK",
-        [0x01] = "ORA",
-        [0x05] = "ORA",
-        [0x06] = "ASL A",
+        [0x01] = "ORA ($%02X,X)",
+        [0x05] = "ORA $%02X",
+        [0x06] = "ASL $%02X",
         [0x08] = "PHP",
-        [0x09] = "ORA",
-        [0x0A] = "ASL",
+        [0x09] = "ORA #$%02X",
+        [0x0A] = "ASL A",
         [0x0D] = "ORA",
-        [0x0E] = "ASL",
-        [0x10] = "BPL",
-        [0x11] = "ORA",
-        [0x15] = "ORA",
-        [0x16] = "ASL",
+        [0x0E] = "ASL $%02X",
+        [0x10] = "BPL $%d",
+        [0x11] = "ORA ($%02X),Y",
+        [0x15] = "ORA $%02X,X",
+        [0x16] = "ASL $%02X,X",
         [0x18] = "CLC",
-        [0x19] = "ORA",
-        [0x1D] = "ORA",
-        [0x1E] = "ASL",
-        [0x20] = "JSR",
-        [0x21] = "AND",
-        [0x24] = "BIT",
-        [0x25] = "AND",
-        [0x26] = "ROL",
+        [0x19] = "ORA $%02X%02X,Y",
+        [0x1D] = "ORA $%02X%02X,X",
+        [0x1E] = "ASL $%02X%02X,X",
+        [0x20] = "JSR $%02X%02X",
+        [0x21] = "AND ($%02X,X)",
+        [0x24] = "BIT $%02X",
+        [0x25] = "AND $%02X",
+        [0x26] = "ROL $%02X",
         [0x28] = "PLP",
-        [0x29] = "AND",
+        [0x29] = "AND #$%02X",
         [0x2A] = "ROL A",
-        [0x2C] = "BIT",
-        [0x2D] = "AND",
-        [0x2E] = "ROL",
-        [0x30] = "BMI",
-        [0x31] = "AND",
-        [0x35] = "AND",
-        [0x36] = "ROL",
+        [0x2C] = "BIT $%02X%02X",
+        [0x2D] = "AND $%02X%02X",
+        [0x2E] = "ROL $%02X%02X",
+        [0x30] = "BMI $%d",
+        [0x31] = "AND ($%02X),Y",
+        [0x35] = "AND $%02X,X",
+        [0x36] = "ROL $%02X,X",
         [0x38] = "SEC",
-        [0x39] = "AND",
-        [0x3D] = "AND",
-        [0x3E] = "ROL",
+        [0x39] = "AND $%02X,Y",
+        [0x3D] = "AND $%02X%02X,X",
+        [0x3E] = "ROL $%02X%02X,X",
         [0x40] = "RTI",
-        [0x41] = "EOR",
-        [0x45] = "EOR",
-        [0x46] = "LSR",
+        [0x41] = "EOR ($%02X,X)",
+        [0x45] = "EOR $%02X",
+        [0x46] = "LSR $%02X",
         [0x48] = "PHA",
-        [0x49] = "EOR",
+        [0x49] = "EOR #$%02X",
         [0x4A] = "LSR A",
-        [0x4C] = "JMP",
-        [0x4D] = "EOR",
-        [0x4E] = "LSR",
-        [0x50] = "BVC",
-        [0x51] = "EOR",
-        [0x55] = "EOR",
-        [0x56] = "LSR",
+        [0x4C] = "JMP $%02X%02X",
+        [0x4D] = "EOR $%02X%02X",
+        [0x4E] = "LSR $%02X%02X",
+        [0x50] = "BVC $%d",
+        [0x51] = "EOR ($%02X),Y",
+        [0x55] = "EOR $%02X,X",
+        [0x56] = "LSR $%02X,X",
         [0x58] = "CLI",
-        [0x59] = "EOR",
-        [0x5D] = "EOR",
-        [0x5E] = "LSR",
+        [0x59] = "EOR $%02X%02X,Y",
+        [0x5D] = "EOR $%02X%02X,X",
+        [0x5E] = "LSR $%02X%02X,X",
         [0x60] = "RTS",
-        [0x61] = "ADC",
-        [0x65] = "ADC",
-        [0x66] = "ROR",
+        [0x61] = "ADC ($%02X,X)",
+        [0x65] = "ADC $%02X",
+        [0x66] = "ROR $%02X",
         [0x68] = "PLA",
-        [0x69] = "ADC",
+        [0x69] = "ADC #$%02X",
         [0x6A] = "ROR A",
-        [0x6C] = "JMP",
-        [0x6D] = "ADC",
-        [0x6E] = "ROR",
-        [0x70] = "BVS",
-        [0x71] = "ADC",
-        [0x75] = "ADC",
-        [0x76] = "ROR",
+        [0x6C] = "JMP ($%02X%02X)",
+        [0x6D] = "ADC $%02X%02X",
+        [0x6E] = "ROR $%02X%02X",
+        [0x70] = "BVS $%d",
+        [0x71] = "ADC ($%02X),Y",
+        [0x75] = "ADC $%02X,X",
+        [0x76] = "ROR $%02X,X",
         [0x78] = "SEI",
-        [0x79] = "ADC",
-        [0x7D] = "ADC",
-        [0x7E] = "ROR",
-        [0x81] = "STA",
-        [0x84] = "STY",
-        [0x85] = "STA",
-        [0x86] = "STX",
+        [0x79] = "ADC $%02X%02X,Y",
+        [0x7D] = "ADC $%02X%02X,X",
+        [0x7E] = "ROR $%02X%02X,X",
+        [0x81] = "STA ($%02X,X)",
+        [0x84] = "STY $%02X",
+        [0x85] = "STA $%02X",
+        [0x86] = "STX $%02X",
         [0x88] = "DEY",
         [0x8A] = "TXA",
-        [0x8C] = "STY",
-        [0x8D] = "STA",
-        [0x8E] = "STX",
-        [0x90] = "BCC",
-        [0x91] = "STA",
-        [0x94] = "STY",
-        [0x95] = "STA",
-        [0x96] = "STX",
+        [0x8C] = "STY $%02X%02X",
+        [0x8D] = "STA $%02X%02X",
+        [0x8E] = "STX $%02X%02X",
+        [0x90] = "BCC $%d",
+        [0x91] = "STA ($%02X),Y",
+        [0x94] = "STY $%02X,X",
+        [0x95] = "STA $%02X,X",
+        [0x96] = "STX $%02X,Y",
         [0x98] = "TAX",
-        [0x99] = "STA",
+        [0x99] = "STA $%02X%02X,Y",
         [0x9A] = "TXS",
-        [0x9D] = "STA",
-        [0xA0] = "LDY",
-        [0xA1] = "LDA",
-        [0xA2] = "LDX",
-        [0xA4] = "LDY",
-        [0xA5] = "LDA",
-        [0xA6] = "LDX",
+        [0x9D] = "STA $%02X%02X,X",
+        [0xA0] = "LDY #$%02X",
+        [0xA1] = "LDA ($%02X,X)",
+        [0xA2] = "LDX #$%02X",
+        [0xA4] = "LDY $%02X",
+        [0xA5] = "LDA $%02X",
+        [0xA6] = "LDX $%02X",
         [0xA8] = "TAY",
-        [0xA9] = "LDA",
+        [0xA9] = "LDA #$%02X",
         [0xAA] = "TAX",
-        [0xAC] = "LDY",
-        [0xAD] = "LDA",
-        [0xAE] = "LDX",
-        [0xB0] = "BCS",
-        [0xB1] = "LDA",
-        [0xB4] = "LDY",
-        [0xB5] = "LDA",
-        [0xB6] = "LDX",
+        [0xAC] = "LDY $%02X%02X",
+        [0xAD] = "LDA $%02X%02X",
+        [0xAE] = "LDX $%02X%02X",
+        [0xB0] = "BCS $%d",
+        [0xB1] = "LDA ($%02X),Y",
+        [0xB4] = "LDY $%02X,X",
+        [0xB5] = "LDA $%02X,X",
+        [0xB6] = "LDX $%02X,Y",
         [0xB8] = "CLV",
-        [0xB9] = "LDA",
+        [0xB9] = "LDA $%02X%02X,Y",
         [0xBA] = "TSX",
-        [0xBC] = "LDY",
-        [0xBD] = "LDA",
-        [0xBE] = "LDX",
-        [0xC0] = "CPY",
-        [0xC1] = "CMP",
-        [0xC4] = "CPY",
-        [0xC5] = "CMP",
-        [0xC6] = "DEC",
+        [0xBC] = "LDY $%02X%02X",
+        [0xBD] = "LDA $%02X%02X,X",
+        [0xBE] = "LDX $%02X%02X,Y",
+        [0xC0] = "CPY #$%02X",
+        [0xC1] = "CMP ($%02X,X)",
+        [0xC4] = "CPY $%02X",
+        [0xC5] = "CMP $%02X",
+        [0xC6] = "DEC $%02X",
         [0xC8] = "INY",
-        [0xC9] = "CMP",
+        [0xC9] = "CMP #$%02X",
         [0xCA] = "DEX",
-        [0xCC] = "CPY",
-        [0xCD] = "CMP",
-        [0xCE] = "DEC",
-        [0xD0] = "BNE",
-        [0xD1] = "CMP",
-        [0xD5] = "CMP",
-        [0xD6] = "DEC",
+        [0xCC] = "CPY $%02X%02X",
+        [0xCD] = "CMP $%02X%02X",
+        [0xCE] = "DEC $%02X%02X",
+        [0xD0] = "BNE $%d",
+        [0xD1] = "CMP ($%02X),Y",
+        [0xD5] = "CMP $%02X,X",
+        [0xD6] = "DEC $%02X,X",
         [0xD8] = "CLD",
-        [0xD9] = "CMP",
-        [0xDD] = "CMP",
-        [0xDE] = "DEC",
-        [0xE0] = "CPX",
-        [0xE1] = "SBC",
-        [0xE4] = "CPX",
-        [0xE5] = "SBC",
-        [0xE6] = "INC",
+        [0xD9] = "CMP $%02X%02X,Y",
+        [0xDD] = "CMP $%02X%02X,X",
+        [0xDE] = "DEC $%02X%02X,X",
+        [0xE0] = "CPX #$%02X",
+        [0xE1] = "SBC ($%02X,X)",
+        [0xE4] = "CPX $%02X",
+        [0xE5] = "SBC $%02X",
+        [0xE6] = "INC $%02X",
         [0xE8] = "INX",
-        [0xE9] = "SBC",
+        [0xE9] = "SBC #$%02X",
         [0xEA] = "NOP",
-        [0xEE] = "INC",
-        [0xEC] = "CPX",
-        [0xED] = "SBC",
-        [0xF0] = "BEQ",
-        [0xF1] = "SBC",
-        [0xF5] = "SBC",
-        [0xF6] = "INC",
+        [0xEE] = "INC $%02X%02X",
+        [0xEC] = "CPX $%02X%02X",
+        [0xED] = "SBC $%02X%02X",
+        [0xF0] = "BEQ $%d",
+        [0xF1] = "SBC ($%02X),Y",
+        [0xF5] = "SBC $%02X,X",
+        [0xF6] = "INC $%02X,X",
         [0xF8] = "SED",
-        [0xF9] = "SBC",
-        [0xFD] = "SBC",
-        [0xFE] = "INC",
+        [0xF9] = "SBC %02X%02X,Y",
+        [0xFD] = "SBC %02X%02X,X",
+        [0xFE] = "INC %02X%02X,X",
     };
 
+    if (cpu->NMI) {
+        cpu->NMIStates |= 1;
+    }
+
+    if (cpu->IRQ && cpu->FI) {
+        cpu->IRQStates |= 1;
+    }
+
     if (cpu->RW && !cpu->RDY) {
+        cpu->IRQStates <<= 1;
         return;
     }
 
     if (cpu->SYNC) {
-        if (cpu->GenerateDisassembly) {
-            cpu->DisasemblyIndex = 0;
-            DISASSEMBLY("%s ", INSTRUCTION_NAMES[cpu->DB]);
+        cpu->DisasmFormat = INSTRUCTION_FORMATS[cpu->DB];
+        cpu->DisasmData1 = 0;
+        cpu->DisasmData2 = 0;
+
+        if (cpu->IRQStates & 0b100) {
+            cpu->BRK_IRQ = true;
         }
+
+        if (cpu->NMIStates & (~0b11)) {
+            cpu->BRK_NMI = true;
+        }
+
+        if (cpu->RES) {
+            cpu->BRK_RESET = true;
+        }
+
+        cpu->IRQStates &= 0b11;
+        cpu->NMIStates &= 0b11;
 
         cpu->IR = cpu->DB << 3;
         cpu->SYNC = 0;
 
-        ++cpu->PC;
+        if (cpu->BRK_IRQ || cpu->BRK_NMI || cpu->BRK_RESET) {
+            cpu->IR = 0;
+            cpu->FB = false;
+            cpu->RES = false;
+        }
+        else {
+            ++cpu->PC;
+        }
     }
 
     _SET_READ();
@@ -487,32 +532,32 @@ void MOS6502_Tick(mos6502_t * cpu)
     // BRK
     case _CYCLE(0x00, 0): _STALL(); break;
     case _CYCLE(0x00, 1):
-        if (/* flags crap? */ false) {
+        if (!cpu->BRK_IRQ && !cpu->BRK_NMI) {
             ++cpu->PC;
         }
         _PUSH();
         cpu->DB = cpu->PCH;
-        if (/* more flags crap? */ false) {
+        if (!cpu->BRK_RESET) {
             _SET_WRITE();
         }
         break;
     case _CYCLE(0x00, 2):
         _PUSH();
         cpu->DB = cpu->PCL;
-        if (/* more flags crap? */ false) {
+        if (!cpu->BRK_RESET) {
             _SET_WRITE();
         }
         break;
     case _CYCLE(0x00, 3):
-        cpu->ADH = 0x01;
-        cpu->ADL = _GET_FLAGS() | _MASK_FB;
-        cpu->DB = cpu->PCL;
-        if (/* even more flags crap?? */ false) {
+        cpu->ABH = 0x01;
+        cpu->ABL = cpu->S--;
+        cpu->DB = _GET_FLAGS() | _MASK_FX;
+        if (cpu->BRK_RESET) {
             cpu->AD = 0xFFFC;
         }
         else {
             _SET_WRITE();
-            if (/* seriously ?*/ false) {
+            if (cpu->BRK_NMI) {
                 cpu->AD = 0xFFFA;
             }
             else {
@@ -522,9 +567,11 @@ void MOS6502_Tick(mos6502_t * cpu)
         break;
     case _CYCLE(0x00, 4):
         cpu->AB = cpu->AD++;
-        // cpu->FB = true;
+        cpu->FB = true;
         cpu->FI = true;
-        // brk_flags
+        cpu->BRK_IRQ = false;
+        cpu->BRK_NMI = false;
+        cpu->BRK_RESET = false;
         break;
     case _CYCLE(0x00, 5):
         cpu->AB = cpu->AD;
@@ -577,6 +624,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // ORA immediate
     case _CYCLE(0x09, 0): _IMM(); break;
     case _CYCLE(0x09, 1):
+        cpu->DisasmData1 = cpu->DB;
         _ORA();
         _FETCH();
         break;
@@ -761,6 +809,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // AND immediate
     case _CYCLE(0x29, 0): _IMM(); break;
     case _CYCLE(0x29, 1):
+        cpu->DisasmData1 = cpu->DB;
         _AND(cpu->DB);
         _FETCH();
         break;
@@ -940,6 +989,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // EOR immediate
     case _CYCLE(0x49, 0): _IMM(); break;
     case _CYCLE(0x49, 1):
+        cpu->DisasmData1 = cpu->DB;
         _EOR();
         _FETCH();
         break;
@@ -1116,6 +1166,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // ADC immediate
     case _CYCLE(0x69, 0): _IMM(); break;
     case _CYCLE(0x69, 1):
+        cpu->DisasmData1 = cpu->DB;
         _ADC(cpu->DB);
         _FETCH();
         break;
@@ -1415,6 +1466,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // LDY immediate
     case _CYCLE(0xA0, 0): _IMM(); break;
     case _CYCLE(0xA0, 1):
+        cpu->DisasmData1 = cpu->DB;
         cpu->Y = cpu->DB;
         _SET_NZ_FLAGS(cpu->Y);
         _FETCH();
@@ -1435,6 +1487,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // LDX immediate
     case _CYCLE(0xA2, 0): _IMM(); break;
     case _CYCLE(0xA2, 1):
+        cpu->DisasmData1 = cpu->DB;
         cpu->X = cpu->DB;
         _SET_NZ_FLAGS(cpu->X);
         _FETCH();
@@ -1478,6 +1531,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // LDA immediate
     case _CYCLE(0xA9, 0): _IMM(); break;
     case _CYCLE(0xA9, 1):
+        cpu->DisasmData1 = cpu->DB;
         cpu->A = cpu->DB;
         _SET_NZ_FLAGS(cpu->A);
         _FETCH();
@@ -1634,6 +1688,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CPY immediate
     case _CYCLE(0xC0, 0): _IMM(); break;
     case _CYCLE(0xC0, 1):
+        cpu->DisasmData1 = cpu->DB;
         _CMP(cpu->Y, cpu->DB);
         _FETCH();
         break;
@@ -1685,6 +1740,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CMP immediate
     case _CYCLE(0xC9, 0): _IMM(); break;
     case _CYCLE(0xC9, 1):
+        cpu->DisasmData1 = cpu->DB;
         _CMP(cpu->A, cpu->DB);
         _FETCH();
         break;
@@ -1807,6 +1863,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // CPX immediate
     case _CYCLE(0xE0, 0): _IMM(); break;
     case _CYCLE(0xE0, 1):
+        cpu->DisasmData1 = cpu->DB;
         _CMP(cpu->X, cpu->DB);
         _FETCH();
         break;
@@ -1858,6 +1915,7 @@ void MOS6502_Tick(mos6502_t * cpu)
     // SBC immediate
     case _CYCLE(0xE9, 0): _IMM(); break;
     case _CYCLE(0xE9, 1):
+        cpu->DisasmData1 = cpu->DB;
         _SBC(cpu->DB);
         _FETCH();
         break;
@@ -1982,6 +2040,8 @@ void MOS6502_Tick(mos6502_t * cpu)
     };
 
     ++cpu->Cycles;
+    cpu->IRQStates <<= 1;
+    cpu->NMIStates <<= 1;
 }
 
 void MOS6502_SetStatusRegister(mos6502_t * cpu, uint8_t p)

@@ -30,6 +30,19 @@ typedef struct nesx_ppu
 
     int Cycle;
 
+    union
+    {
+        struct
+        {
+            uint8_t :5;
+            uint8_t SpriteOverflow:1;
+            uint8_t SpriteHit:1;
+            uint8_t VBlank:1;
+        };
+
+        uint8_t Status;
+    };
+
     // Video RAM
     uint8_t VRAM[0x800];
 

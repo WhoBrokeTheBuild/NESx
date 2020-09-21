@@ -10,6 +10,8 @@ void NESx_PPU_Init(nesx_t * ctx)
     ppu->Cycle = 0;
     ppu->Scanline = 0;
 
+    ppu->Status = 0;
+
     memset(ppu->VRAM, 0, sizeof(ppu->VRAM));
     memset(ppu->PaletteRAM, 0, sizeof(ppu->PaletteRAM));
 
@@ -25,6 +27,7 @@ void NESx_PPU_Tick(nesx_t * ctx)
     if (ppu->Cycle == 340) {
         ppu->Cycle = 0;
         ++ppu->Scanline;
+        ppu->VBlank = (ppu->Scanline >= 241 && ppu->Scanline <= 260);
         if (ppu->Scanline == 261) {
             ppu->Scanline = 0;
         }

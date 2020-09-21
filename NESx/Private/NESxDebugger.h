@@ -70,6 +70,12 @@ struct _NESxDebugger
     GtkCheckButton * chkRDY;
     GtkCheckButton * chkRES;
 
+    // PPU Internals
+
+    GtkEntry * entScanline;
+
+    GtkCheckButton * chkVBlank;
+
     // Execution Log
 
     GtkTextView * txtExecutionLogHeader;
@@ -79,17 +85,26 @@ struct _NESxDebugger
 
 GtkWidget * nesx_debugger_new(nesx_t * nes, bool * running);
 
+void nesx_debugger_save_execution_log(NESxDebugger * self);
+
 void nesx_debugger_tick(NESxDebugger * self);
 void nesx_debugger_step(NESxDebugger * self);
 void nesx_debugger_frame(NESxDebugger * self);
 void nesx_debugger_run(NESxDebugger * self);
 void nesx_debugger_stop(NESxDebugger * self);
 
-void nesx_debugger_update(NESxDebugger * self);
-void nesx_debugger_update_status(NESxDebugger * win);
-void nesx_debugger_update_registers(NESxDebugger * win);
-void nesx_debugger_update_status_registers(NESxDebugger * win);
-void nesx_debugger_update_cpu_internals(NESxDebugger * win);
+void nesx_debugger_display(NESxDebugger * self);
+void nesx_debugger_display_status(NESxDebugger * self);
+void nesx_debugger_display_registers(NESxDebugger * self);
+void nesx_debugger_display_status_registers(NESxDebugger * self);
+void nesx_debugger_display_cpu_internals(NESxDebugger * self);
+void nesx_debugger_display_ppu_internals(NESxDebugger * self);
+
+void nesx_debugger_apply(NESxDebugger * self);
+void nesx_debugger_apply_registers(NESxDebugger * self);
+void nesx_debugger_apply_status_registers(NESxDebugger * self);
+void nesx_debugger_apply_cpu_internals(NESxDebugger * self);
+void nesx_debugger_apply_ppu_internals(NESxDebugger * self);
 
 void nesx_debugger_add_log_entry(NESxDebugger * self);
 

@@ -54,8 +54,6 @@ int main(int argc, char ** argv)
         goto cleanup;
     }
 
-    nes.CPU.GenerateDisassembly = true;
-
     app = gtk_application_new("com.stephenlw.nesx", G_APPLICATION_FLAGS_NONE);
     if (!app) {
         fprintf(stderr, "failed to create GTK application\n");

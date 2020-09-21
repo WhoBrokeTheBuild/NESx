@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.22.1 -->
+<!-- Generated with glade 3.22.2 -->
 <interface>
   <requires lib="gtk+" version="3.10"/>
   <object class="GtkAdjustment" id="adjExecutionLog">
@@ -10,7 +10,7 @@
   <template class="NESxDebugger" parent="GtkWindow">
     <property name="can_focus">False</property>
     <property name="title" translatable="yes">NESx Debugger</property>
-    <child>
+    <child type="titlebar">
       <placeholder/>
     </child>
     <child>
@@ -33,135 +33,12 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-new</property>
+                      <object class="GtkMenuItem">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Save Execution Log</property>
                         <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-open</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-save</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-save-as</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkSeparatorMenuItem">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-quit</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkMenuItem">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="label" translatable="yes">_Edit</property>
-                <property name="use_underline">True</property>
-                <child type="submenu">
-                  <object class="GtkMenu">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-cut</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-copy</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-paste</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-delete</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkMenuItem">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="label" translatable="yes">_View</property>
-                <property name="use_underline">True</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkMenuItem">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="label" translatable="yes">_Help</property>
-                <property name="use_underline">True</property>
-                <child type="submenu">
-                  <object class="GtkMenu">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <child>
-                      <object class="GtkImageMenuItem">
-                        <property name="label">gtk-about</property>
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="use_underline">True</property>
-                        <property name="use_stock">True</property>
+                        <signal name="activate" handler="nesx_debugger_save_execution_log" object="NESxDebugger" swapped="yes"/>
                       </object>
                     </child>
                   </object>
@@ -376,6 +253,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The Carry flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">3</property>
@@ -390,6 +268,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The Zero flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">2</property>
@@ -404,6 +283,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The Interrupt Disable flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -418,6 +298,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The Decimal flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">0</property>
@@ -432,6 +313,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The "BRK" flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">3</property>
@@ -446,6 +328,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The Overflow flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -460,6 +343,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The Negative flag</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">0</property>
@@ -474,6 +358,7 @@
                             <property name="receives_default">False</property>
                             <property name="tooltip_text" translatable="yes">The unused bit of the flag register</property>
                             <property name="draw_indicator">True</property>
+                            <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                           </object>
                           <packing>
                             <property name="left_attach">2</property>
@@ -538,6 +423,7 @@
                                 <property name="max_length">2</property>
                                 <property name="width_chars">3</property>
                                 <property name="text" translatable="yes">AF</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -568,6 +454,7 @@
                                 <property name="max_length">2</property>
                                 <property name="width_chars">3</property>
                                 <property name="text" translatable="yes">BE</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -597,6 +484,7 @@
                                 <property name="max_length">2</property>
                                 <property name="width_chars">3</property>
                                 <property name="text" translatable="yes">FF</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -637,6 +525,7 @@
                                 <property name="max_length">2</property>
                                 <property name="width_chars">3</property>
                                 <property name="text" translatable="yes">FD</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -667,6 +556,7 @@
                                 <property name="max_length">4</property>
                                 <property name="width_chars">5</property>
                                 <property name="text" translatable="yes">C000</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -738,6 +628,7 @@
                                 <property name="max_length">4</property>
                                 <property name="width_chars">5</property>
                                 <property name="text" translatable="yes">DEAD</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -768,6 +659,7 @@
                                 <property name="max_length">4</property>
                                 <property name="width_chars">5</property>
                                 <property name="text" translatable="yes">BEEF</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -809,6 +701,7 @@
                                 <property name="max_length">2</property>
                                 <property name="width_chars">3</property>
                                 <property name="text" translatable="yes">AF</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -839,6 +732,7 @@
                                 <property name="max_length">2</property>
                                 <property name="width_chars">3</property>
                                 <property name="text" translatable="yes">FF</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -864,8 +758,9 @@
                                 <property name="visible">True</property>
                                 <property name="can_focus">True</property>
                                 <property name="receives_default">False</property>
-                                <property name="tooltip_text" translatable="yes">The Read/Write flag</property>
+                                <property name="tooltip_text" translatable="yes">On = Read, Off = Write</property>
                                 <property name="draw_indicator">True</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="left_attach">0</property>
@@ -880,6 +775,7 @@
                                 <property name="receives_default">False</property>
                                 <property name="tooltip_text" translatable="yes">The SYNC (New Instruction) flag</property>
                                 <property name="draw_indicator">True</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="left_attach">1</property>
@@ -894,6 +790,7 @@
                                 <property name="receives_default">False</property>
                                 <property name="tooltip_text" translatable="yes">The IRQ (Interrupt Request) flag</property>
                                 <property name="draw_indicator">True</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="left_attach">2</property>
@@ -908,6 +805,7 @@
                                 <property name="receives_default">False</property>
                                 <property name="tooltip_text" translatable="yes">The NMI (Non-Maskable Interrupt) flag</property>
                                 <property name="draw_indicator">True</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="left_attach">0</property>
@@ -922,6 +820,7 @@
                                 <property name="receives_default">False</property>
                                 <property name="tooltip_text" translatable="yes">The RDY (Data Ready) flag</property>
                                 <property name="draw_indicator">True</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="left_attach">1</property>
@@ -936,6 +835,7 @@
                                 <property name="receives_default">False</property>
                                 <property name="tooltip_text" translatable="yes">The RES (Reset Request) flag</property>
                                 <property name="draw_indicator">True</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
                               </object>
                               <packing>
                                 <property name="left_attach">2</property>
@@ -969,14 +869,123 @@
                   <object class="GtkFrame">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="margin_top">4</property>
+                    <property name="margin_bottom">8</property>
                     <property name="label_xalign">0.5</property>
                     <property name="shadow_type">in</property>
                     <child>
                       <object class="GtkBox">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="margin_left">8</property>
-                        <property name="margin_right">8</property>
+                        <property name="margin_top">4</property>
+                        <property name="margin_bottom">8</property>
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="margin_left">8</property>
+                                <property name="margin_right">8</property>
+                                <property name="label" translatable="yes">Scanline:</property>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                                <property name="position">0</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="entScanline">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="max_length">3</property>
+                                <property name="width_chars">4</property>
+                                <property name="max_width_chars">3</property>
+                                <property name="input_purpose">number</property>
+                                <signal name="activate" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                                <property name="position">1</property>
+                              </packing>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <child>
+                              <object class="GtkCheckButton" id="chkVBlank">
+                                <property name="label" translatable="yes">VBlank</property>
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="receives_default">False</property>
+                                <property name="tooltip_text" translatable="yes">The PPU Status VBlank flag</property>
+                                <property name="draw_indicator">True</property>
+                                <signal name="toggled" handler="nesx_debugger_apply" object="NESxDebugger" swapped="yes"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">True</property>
+                                <property name="position">0</property>
+                              </packing>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">PPU Internals</property>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">4</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkFrame">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label_xalign">0.5</property>
+                    <property name="shadow_type">in</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
                         <property name="margin_top">4</property>
                         <property name="margin_bottom">8</property>
                         <property name="orientation">vertical</property>
@@ -1116,14 +1125,20 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">4</property>
+                    <property name="position">0</property>
                   </packing>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
                 </child>
               </object>
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="position">2</property>
               </packing>
             </child>
           </object>
