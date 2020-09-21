@@ -14,19 +14,19 @@ jobs:
   include:
     - name: "GCC Debug"
       compiler: gcc
-      env: CMAKE_BUILD_TYPE=DEBUG
+      env: BuildType=Debug
 
     - name: "GCC Release"
       compiler: gcc
-      env: CMAKE_BUILD_TYPE=RELEASE
+      env: BuildType=Release
 
     - name: "Clang Debug"
       compiler: clang
-      env: CMAKE_BUILD_TYPE=DEBUG
+      env: BuildType=Debug
 
     - name: "Clang Release"
       compiler: clang
-      env: CMAKE_BUILD_TYPE=RELEASE
+      env: BuildType=Release
 
 before_install:
   - mkdir $HOME/cmake
@@ -39,6 +39,6 @@ before_install:
 script:
   - mkdir "$TRAVIS_BUILD_DIR/build"
   - cd "$TRAVIS_BUILD_DIR/build"
-  - cmake -DBUILD_TOOLS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
+  - cmake -DCMAKE_BUILD_TYPE="$BuildType" -DBUILD_TOOLS=ON -G "Unix Makefiles" "$TRAVIS_BUILD_DIR"
   - make -l all
   - ctest --output-on-failure

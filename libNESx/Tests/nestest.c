@@ -105,6 +105,7 @@ int main(int argc, char ** argv)
 
     nes.CPU.PC = 0xC000;
     nes.CPU.AB = nes.CPU.PC;
+    nes.CPU.RES = false;
     MOS6502_SetStatusRegister(&nes.CPU, 0x24);
 
     char line[256];
