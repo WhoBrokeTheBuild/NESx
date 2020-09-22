@@ -6,6 +6,7 @@
 
 #include <stdbool.h>
 
+#include "Debug/Breakpoint.h"
 // #include "MemoryView.h"
 
 typedef struct _NESxDebugger NESxDebugger;
@@ -28,6 +29,10 @@ struct _NESxDebugger
     nesx_rom_header_t * hdr;
 
     bool * running;
+
+    NESxBreakpoint * firstBreakpoint;
+
+    GtkLabel * lblStatusBar;
 
     // Status
 
@@ -81,11 +86,16 @@ struct _NESxDebugger
     GtkTextView * txtExecutionLogHeader;
     GtkTextView * txtExecutionLog;
 
+    // Breakpoints
+
+    GtkListBox * lstBreakpoints;
+
 };
 
 GtkWidget * nesx_debugger_new(nesx_t * nes, bool * running);
 
 void nesx_debugger_save_execution_log(NESxDebugger * self);
+void nesx_debugger_add_log_entry(NESxDebugger * self);
 
 void nesx_debugger_tick(NESxDebugger * self);
 void nesx_debugger_step(NESxDebugger * self);
@@ -106,6 +116,9 @@ void nesx_debugger_apply_status_registers(NESxDebugger * self);
 void nesx_debugger_apply_cpu_internals(NESxDebugger * self);
 void nesx_debugger_apply_ppu_internals(NESxDebugger * self);
 
-void nesx_debugger_add_log_entry(NESxDebugger * self);
+void nesx_debugger_display_breakpoints(NESxDebugger * self);
+void nesx_debugger_add_breakpoint(NESxDebugger * self);
+void nesx_debugger_clear_breakpoints(NESxDebugger * self);
+void nesx_debugger_remove_breakpoint(NESxDebugger * self, GtkButton * button);
 
 #endif // NESX_DEBUGGER_H

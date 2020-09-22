@@ -2,6 +2,7 @@
 
 // #include "Mapper/NROM.h"
 #include "Resource.h"
+#include "Debug/BreakpointDialog.h"
 
 #include <time.h>
 #include <errno.h>
@@ -66,6 +67,7 @@ GtkWidget * nesx_debugger_new(nesx_t * nes, bool * running)
     debugger->mmu = &nes->MMU;
     debugger->hdr = &nes->ROM.Header;
     debugger->running = running;
+    debugger->firstBreakpoint = NULL;
     return GTK_WIDGET(debugger);
 }
 
@@ -75,6 +77,8 @@ void nesx_debugger_init(NESxDebugger * self)
 
     gtk_text_buffer_set_text(gtk_text_view_get_buffer(self->txtExecutionLogHeader), 
         NESX_EXECUTION_LOG_HEADER, -1);
+
+    nesx_debugger_display_breakpoints(self);
 }
 
 void nesx_debugger_class_init(NESxDebuggerClass * klass)
@@ -82,15 +86,17 @@ void nesx_debugger_class_init(NESxDebuggerClass * klass)
     GtkWidgetClass * wc = GTK_WIDGET_CLASS(klass);
 
     GError * error = NULL;
-    GBytes * data = g_resource_lookup_data(nesx_get_resource(), "/NESxDebugger.glade", 0, &error);
+    GBytes * data = g_resource_lookup_data(nesx_get_resource(), "/nesx/Debugger.glade", 0, &error);
     if (!data) {
-        fprintf(stderr, "failed to load NESxDebugger.glade %s\n", error->message);
+        fprintf(stderr, "failed to load /nesx/Debugger.glade %s\n", error->message);
         g_error_free(error);
     }
 
     gtk_widget_class_set_template(wc, data);
 
     gtk_widget_class_bind_template_callback(wc, nesx_debugger_apply);
+    gtk_widget_class_bind_template_callback(wc, nesx_debugger_add_breakpoint);
+    gtk_widget_class_bind_template_callback(wc, nesx_debugger_clear_breakpoints);
     gtk_widget_class_bind_template_callback(wc, nesx_debugger_save_execution_log);
 
     // Status
@@ -139,10 +145,12 @@ void nesx_debugger_class_init(NESxDebuggerClass * klass)
     gtk_widget_class_bind_template_child(wc, NESxDebugger, entScanline);
     gtk_widget_class_bind_template_child(wc, NESxDebugger, chkVBlank);
 
-
     // Execution Log
     gtk_widget_class_bind_template_child(wc, NESxDebugger, txtExecutionLogHeader);
     gtk_widget_class_bind_template_child(wc, NESxDebugger, txtExecutionLog);
+
+    // Breakpoints
+    gtk_widget_class_bind_template_child(wc, NESxDebugger, lstBreakpoints);
 }
 
 void nesx_debugger_tick(NESxDebugger * self)
@@ -159,7 +167,17 @@ void nesx_debugger_step(NESxDebugger * self)
 
 void nesx_debugger_frame(NESxDebugger * self)
 {
-    NESx_Frame(self->nes);
+    int scanline;
+    do {
+        scanline = self->nes->PPU.Scanline;
+        NESx_Tick(self->nes);
+        if (nesx_breakpoint_list_check(self->firstBreakpoint, self->nes)) {
+            *(self->running) = false;
+            break;
+        }
+    }
+    while (scanline <= self->nes->PPU.Scanline);
+
     nesx_debugger_display(self);
 }
 
@@ -229,6 +247,40 @@ void nesx_debugger_save_execution_log(NESxDebugger * self)
     }
 
     gtk_widget_destroy(dialog);
+}
+
+void nesx_debugger_add_log_entry(NESxDebugger * self)
+{
+    GtkTextBuffer * gtkBuffer = gtk_text_view_get_buffer(self->txtExecutionLog);
+    GtkTextIter iter;
+
+    mos6502_t * cpu = &self->nes->CPU;
+
+    char disasm[17];
+    snprintf(disasm, sizeof(disasm), cpu->DisasmFormat, cpu->DisasmData1, cpu->DisasmData2);
+
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), NESX_EXECUTION_LOG_FORMAT,
+        disasm, 
+        cpu->A, 
+        cpu->X, 
+        cpu->Y, 
+        cpu->S, 
+        cpu->PC,
+        (cpu->FN ? 'N' : 'n'),
+        (cpu->FV ? 'V' : 'v'),
+        (cpu->FD ? 'D' : 'd'),
+        (cpu->FB ? 'B' : 'b'),
+        (cpu->FI ? 'I' : 'i'),
+        (cpu->FZ ? 'Z' : 'z'),
+        (cpu->FC ? 'C' : 'c'),
+        cpu->Cycles);
+    
+    gtk_text_buffer_get_end_iter(gtkBuffer, &iter);
+    gtk_text_buffer_insert(gtkBuffer, &iter, buffer, -1);
+
+    GtkTextMark * mark = gtk_text_buffer_get_insert(gtkBuffer);
+    gtk_text_view_scroll_to_mark(self->txtExecutionLog, mark, 0.0, false, 0.0, false);
 }
 
 void nesx_debugger_display(NESxDebugger * self)
@@ -354,7 +406,6 @@ void nesx_debugger_apply_registers(NESxDebugger * self)
     if (sscanf(gtk_entry_get_text(self->entPC), "%4X", &value) == 1) {
         self->cpu->PC = value;
     }
-
 }
 
 void nesx_debugger_apply_status_registers(NESxDebugger * self)
@@ -408,36 +459,123 @@ void nesx_debugger_apply_ppu_internals(NESxDebugger * self)
     self->ppu->VBlank = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(self->chkVBlank));
 }
 
-void nesx_debugger_add_log_entry(NESxDebugger * self)
+void nesx_debugger_display_breakpoints(NESxDebugger * self)
 {
-    GtkTextBuffer * gtkBuffer = gtk_text_view_get_buffer(self->txtExecutionLog);
-    GtkTextIter iter;
+    GList * children = gtk_container_get_children(GTK_CONTAINER(self->lstBreakpoints));
+    for (GList * iter = children; iter != NULL; iter = g_list_next(iter)) {
+        gtk_widget_destroy(GTK_WIDGET(iter->data));
+    }
+    g_list_free(children);
 
-    mos6502_t * cpu = &self->nes->CPU;
+    char buffer[32];
+    NESxBreakpoint * tmp = self->firstBreakpoint;
+    while (tmp) {
+        GtkBox * box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
 
-    char disasm[17];
-    snprintf(disasm, sizeof(disasm), cpu->DisasmFormat, cpu->DisasmData1, cpu->DisasmData2);
+        if (tmp->type == BREAKPOINT_TYPE_NUMERIC) {
+            switch (tmp->numericTarget)
+            {
+            case BREAKPOINT_NUMERIC_TARGET_PC:
+            case BREAKPOINT_NUMERIC_TARGET_AB:
+            case BREAKPOINT_NUMERIC_TARGET_AD:
+                snprintf(buffer, sizeof(buffer), "%s %s 0x%04X",
+                    nesx_breakpoint_numeric_target_string(tmp->numericTarget),
+                    nesx_breakpoint_numeric_comp_string(tmp->numericComp),
+                    tmp->value);
+                break;
+            case BREAKPOINT_NUMERIC_TARGET_A:
+            case BREAKPOINT_NUMERIC_TARGET_X:
+            case BREAKPOINT_NUMERIC_TARGET_Y:
+            case BREAKPOINT_NUMERIC_TARGET_S:
+            case BREAKPOINT_NUMERIC_TARGET_DB:
+            case BREAKPOINT_NUMERIC_TARGET_IR:
+                snprintf(buffer, sizeof(buffer), "%s %s 0x%02X",
+                    nesx_breakpoint_numeric_target_string(tmp->numericTarget),
+                    nesx_breakpoint_numeric_comp_string(tmp->numericComp),
+                    tmp->value);
+                break;
+            case BREAKPOINT_NUMERIC_TARGET_CPU_CYCLE:
+            case BREAKPOINT_NUMERIC_TARGET_PPU_CYCLE:
+            case BREAKPOINT_NUMERIC_TARGET_SCANLINE:
+                snprintf(buffer, sizeof(buffer), "%s %s %d",
+                    nesx_breakpoint_numeric_target_string(tmp->numericTarget),
+                    nesx_breakpoint_numeric_comp_string(tmp->numericComp),
+                    tmp->value);
+                break;
+            }
+        }
+        else {
+            snprintf(buffer, sizeof(buffer), "%s %s",
+                nesx_breakpoint_flag_target_string(tmp->flagTarget),
+                nesx_breakpoint_flag_trigger_string(tmp->flagTrigger));
+        }
 
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), NESX_EXECUTION_LOG_FORMAT,
-        disasm, 
-        cpu->A, 
-        cpu->X, 
-        cpu->Y, 
-        cpu->S, 
-        cpu->PC,
-        (cpu->FN ? 'N' : 'n'),
-        (cpu->FV ? 'V' : 'v'),
-        (cpu->FD ? 'D' : 'd'),
-        (cpu->FB ? 'B' : 'b'),
-        (cpu->FI ? 'I' : 'i'),
-        (cpu->FZ ? 'Z' : 'z'),
-        (cpu->FC ? 'C' : 'c'),
-        cpu->Cycles);
+        GtkLabel * label = GTK_LABEL(gtk_label_new(buffer));
+        gtk_widget_set_margin_start(GTK_WIDGET(label), 8);
+        gtk_label_set_xalign(label, 0.0f);
+        gtk_box_pack_start(box, GTK_WIDGET(label), true, true, 0);
+
+        GtkButton * button = GTK_BUTTON(gtk_button_new_from_icon_name("edit-delete-symbolic", GTK_ICON_SIZE_BUTTON));
+        g_signal_connect_swapped(G_OBJECT(button), "clicked", G_CALLBACK(nesx_debugger_remove_breakpoint), self);
+        gtk_box_pack_start(box, GTK_WIDGET(button), false, false, 0);
+
+        gtk_container_add(GTK_CONTAINER(self->lstBreakpoints), GTK_WIDGET(box));
+
+        tmp = tmp->next;
+    }
+
+    gtk_widget_show_all(GTK_WIDGET(self->lstBreakpoints));
+}
+
+void nesx_debugger_clear_breakpoints(NESxDebugger * self)
+{
+    nesx_breakpoint_list_clear(&self->firstBreakpoint);
+    nesx_debugger_display_breakpoints(self);
+}
+
+void nesx_debugger_add_breakpoint(NESxDebugger * self)
+{
+    NESxBreakpointDialog * dialog = NESX_BREAKPOINT_DIALOG(nesx_breakpoint_dialog_new(GTK_WINDOW(self)));
     
-    gtk_text_buffer_get_end_iter(gtkBuffer, &iter);
-    gtk_text_buffer_insert(gtkBuffer, &iter, buffer, -1);
+    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (result == GTK_RESPONSE_APPLY) {
+        int type = nesx_breakpoint_dialog_get_breakpoint_type(dialog);
+        NESxBreakpoint * brk = nesx_breakpoint_list_add(&self->firstBreakpoint);
+        brk->type = type;
+        if (type == BREAKPOINT_TYPE_NUMERIC) {
+            brk->numericTarget = nesx_breakpoint_dialog_get_numeric_target(dialog);
+            brk->numericComp = nesx_breakpoint_dialog_get_numeric_comp(dialog);
 
-    GtkTextMark * mark = gtk_text_buffer_get_insert(gtkBuffer);
-    gtk_text_view_scroll_to_mark(self->txtExecutionLog, mark, 0.0, false, 0.0, false);
+            const char * value = nesx_breakpoint_dialog_get_numeric_value(dialog);
+            if (strncmp("0x", value, 2) == 0) {
+                sscanf(value + 2, "%X", &brk->value);
+            }
+            else {
+                sscanf(value, "%d", &brk->value);
+            }
+        }
+        else {
+            brk->flagTarget = nesx_breakpoint_dialog_get_flag_target(dialog);
+            brk->flagTrigger = nesx_breakpoint_dialog_get_flag_trigger(dialog);
+        }
+
+        nesx_debugger_display_breakpoints(self);
+
+        if (nesx_breakpoint_list_check(self->firstBreakpoint, self->nes)) {
+            *(self->running) = false;
+        }
+    }
+
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+
+void nesx_debugger_remove_breakpoint(NESxDebugger * self, GtkButton * button)
+{
+    GtkWidget * box = gtk_widget_get_parent(GTK_WIDGET(button));
+    GtkListBoxRow * row = GTK_LIST_BOX_ROW(gtk_widget_get_parent(box));
+    int index = gtk_list_box_row_get_index(row);
+
+    nesx_breakpoint_list_remove(&self->firstBreakpoint, index);
+
+    nesx_debugger_display_breakpoints(self);
 }

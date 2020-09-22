@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/">
-    <file preprocess="xml-stripblanks">NESxWindow.glade</file>
-    <file preprocess="xml-stripblanks">NESxDebugger.glade</file>
-    <file preprocess="xml-stripblanks">NESxMemoryVIewer.glade</file>
+  <gresource prefix="/nesx/">
+    <file preprocess="xml-stripblanks">Window.glade</file>
+    <file preprocess="xml-stripblanks">Debugger.glade</file>
+    <file preprocess="xml-stripblanks">MemoryViewer.glade</file>
+    <file preprocess="xml-stripblanks">BreakpointDialog.glade</file>
   </gresource>
 </gresources>

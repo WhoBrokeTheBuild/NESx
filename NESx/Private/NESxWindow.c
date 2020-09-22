@@ -408,9 +408,9 @@ void nesx_window_class_init(NESxWindowClass * klass)
     GtkWidgetClass * wc = GTK_WIDGET_CLASS(klass);
 
     GError * error = NULL;
-    GBytes * data = g_resource_lookup_data(nesx_get_resource(), "/NESxWindow.glade", 0, &error);
+    GBytes * data = g_resource_lookup_data(nesx_get_resource(), "/nesx/Window.glade", 0, &error);
     if (!data) {
-        fprintf(stderr, "failed to load NESxWindow.glade: %s\n", error->message);
+        fprintf(stderr, "failed to load /nesx/Window.glade: %s\n", error->message);
         g_error_free(error);
     }
 
@@ -445,14 +445,7 @@ void nesx_window_run(NESxWindow * self)
 
         if (self->running) {
             if (self->debugger) {
-                // TODO: Cleanup
-                int scanline;
-                do {
-                    scanline = self->nes->PPU.Scanline;
-                    NESx_Step(self->nes);
-                    nesx_debugger_add_log_entry(self->debugger);
-                }
-                while (scanline <= self->nes->PPU.Scanline);
+                nesx_debugger_frame(self->debugger);
             }
             else {
                 NESx_Frame(self->nes);
